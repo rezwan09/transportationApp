@@ -75,3 +75,30 @@ Sample response:
     }
 }
 
+
+#API: Trip
+================
+
+# Add a Trip
+URI: /addTrip
+Params: 
+    "uid" (Integer),
+    "tripid": (String),
+    "src" (String),
+    "dst": (String),
+    "started" (String),
+    "arrived": (String)
+
+Sample request:
+{
+    "user_id": 3,
+    "name": "Denver"
+}
+Sample response:
+
+{'ResponseMetadata': {'RequestId': '0HTV909DLS8N2HIJ4I8L9432JBVV4KQNSO5AEMVJF66Q9ASUAAJG', 'HTTPStatusCode': 200, 'HTTPHeaders': {'server': 'Server', 'date': 'Thu,
+            14 Apr 2022 19: 30: 50 GMT', 'content-type': 'application/x-amz-json-1.0', 'content-length': '2', 'connection': 'keep-alive', 'x-amzn-requestid': '0HTV909DLS8N2HIJ4I8L9432JBVV4KQNSO5AEMVJF66Q9ASUAAJG', 'x-amz-crc32': '2745614147'
+        }, 'RetryAttempts': 0
+    }
+}
+

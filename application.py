@@ -2,105 +2,120 @@ from flask import Flask, request, jsonify
 import boto3
 import json
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 import calendar
+import time
+import googlemaps
 from boto3.dynamodb.conditions import Key, Attr
 
-application = app = Flask(__name__)
+application = TransportationApp = Flask(__name__)
+
+gmaps = googlemaps.Client(key="AIzaSyBS6SMCbOMepaibpG71IjXDulkVlOLM8p8")
+
+# Geocoding an address
+#geocode_result = gmaps.geocode('1600 Amphitheatre Parkway, Mountain View, CA')
+
+# Look up an address with reverse geocoding
+#reverse_geocode_result = gmaps.reverse_geocode((40.714224, -73.961452))
+#print("Geocode === ", geocode_result)
+# Request directions via public transit
+now = datetime.now()
+"""directions_result = gmaps.directions("Sydney Town Hall",
+                                     "Parramatta, NSW",
+                                     mode="transit",
+                                     departure_time=now) """
 
 
-@app.route('/')
+@TransportationApp.route('/')
 def index():
     print("Got request in server")
     return "Hello World!"
 
 
-@app.route('/getPlaces', methods=['POST'])
+@TransportationApp.route('/place/all', methods=['GET'])
 def get_places():
-    # Get list of places by user_id or name
-    user_id = request.get_json().get("user_id")
-    user_id = int(user_id)
-    print("user id =", user_id)
-    # Get list from dynamoDB and return
-    res = db_get_places(user_id)
+    # Get list of places by user_id
+    res = db_get_places(request.get_json())
     return res
 
 
-@app.route('/addPlace', methods=['POST'])
+@TransportationApp.route('/place', methods=['GET'])
+def get_place():
+    res = db_get_place(request.get_json())
+    return res
+
+
+@TransportationApp.route('/place', methods=['POST'])
 def add_place():
+    """ This will do insert or update"""
     res = db_add_place(request.get_json())
     return res
 
 
-@app.route('/updatePlace', methods=['POST'])
+@TransportationApp.route('/updatePlace', methods=['POST'])
 def update_place():
+    """ Not needed currently"""
     res = db_update_place(request.get_json())
     return res
 
 
-@app.route('/removePlace', methods=['POST'])
+@TransportationApp.route('/place/remove', methods=['POST'])
 def remove_place():
-    user_id = str(request.get_json().get("user_id"))
-    name = request.get_json().get("name")
-    print(user_id, name)
-    res = db_delete_place(user_id+name)
+    res = db_delete_place(request.get_json())
     return res
 
 
-@app.route('/addTrip', methods=['POST'])
+@TransportationApp.route('/trip', methods=['GET'])
+def get_trip():
+    res = db_get_trip(request.get_json())
+    return res
+
+
+@TransportationApp.route('/trip', methods=['POST'])
 def add_trip():
-    uid = request.get_json().get("uid")
-    trip_id = request.get_json().get("tripid")
-    src = request.get_json().get("src")
-    dst = request.get_json().get("dst")
-    started = request.get_json().get("started")
-    arrived = request.get_json().get("arrived")
-    route = request.get_json().get("route")
-    suggested_routes = request.get_json().get("suggestedRoutes")
-    trip_feedback = request.get_json().get("tripFeedback")
-    print(uid, trip_id, src, dst, started, arrived, route, suggested_routes, trip_feedback)
-    res = db_add_trip(uid, trip_id, src, dst, started, arrived, route, suggested_routes, trip_feedback)
+    res = db_add_trip(request.get_json())
     return res
 
 
-@app.route('/viewNextTrip', methods=['POST'])
-def view_next_trip():
+@TransportationApp.route('/trip/remove', methods=['POST'])
+def remove_trip():
+    res = db_delete_trip(request.get_json())
+    return res
+
+
+@TransportationApp.route('/trips/upcoming', methods=['GET'])
+def view_upcoming_trips():
     # Get next trip that's planned in the preference table
     user_id = request.get_json().get("user_id")
-    res = db_view_next_trip(user_id)
+    interval = request.get_json().get("interval")
+    res = db_view_upcoming_trips(user_id, interval)
     return res
 
 
-@app.route('/viewFutureTrips', methods=['POST'])
-def view_future_rips():
-    uid = request.get_json().get("uid")
-    # Get next trip that's planned in the preference table
-
-
-@app.route('/viewTripHistory', methods=['POST'])
+@TransportationApp.route('/trips/history', methods=['GET'])
 def view_trip_history():
-    uid = request.get_json().get("uid")
-    # Get next trip that's planned in the preference table
+    user_id = request.get_json().get("user_id")
+    res = db_view_trip_history(user_id)
+    return res
 
 
-@app.route('/addRoutePreference', methods=['POST'])
+@TransportationApp.route('/addRoutePreference', methods=['POST'])
 def add_route_pref():
     user_id = request.get_json().get("user_id")
     destination_id = request.get_json().get("destination_id")
     medium = request.get_json().get("medium")
     days_of_week = request.get_json().get("days_of_week")
-    print(user_id, destination_id, medium,days_of_week)
+    print(user_id, destination_id, medium, days_of_week)
     res = db_add_route_pref(user_id, destination_id, medium, days_of_week)
     return res
 
 
-@app.route('/removeTrip', methods=['POST'])
-def remove_trip():
-    uid = request.get_json().get("uid")
-    tripid = request.get_json().get("tripid")
-    print(uid, tripid)
-    res = db_delete_trip(uid, tripid)
+# Get the fastest and safest routes
+@TransportationApp.route('/routes', methods=['POST'])
+def get_routes():
+    res = db_get_routes(request.get_json())
     return res
+
 
 
 # DB call implementations---
@@ -113,18 +128,40 @@ def db_add_place(item):
     table = dynamodb.Table(table_name)
 
     item = json.loads(json.dumps(item), parse_float=Decimal)
+    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    new_id = item.get('id')
+    if item.get('id') == "" or item.get('id') is None:
+        new_id = round(time.time() * 1000)
 
     response = table.put_item(
         Item={
-            'id': str(item.get("user_id"))+item.get("name"),
+            'id': str(new_id),
             'user_id': item.get("user_id"),
             'place_name': item.get("name"),
+            'address': item.get("address"),
             'lat': item.get("lat"),
             'lon': item.get("lon")
-        } 
+        }
     )
     print(response)
     return str(response)
+
+
+def db_get_place(item):
+    table_name = "place"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get the item with the key
+    response = table.get_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
+    items = response['Items']
+    print(items)
+    return str(items)
 
 
 def db_update_place(item):
@@ -137,34 +174,55 @@ def db_update_place(item):
 
     response = table.update_item(
         Key={
-            'id': str(item.get("user_id")) + item.get("name")
+            'id': str(item.get("id"))
         },
-        UpdateExpression='SET place_name = :val',
+        UpdateExpression='SET place_name = :new_name',
         ExpressionAttributeValues={
-            ':val': item.get("name")
+            ':new_name': item.get("name")
         }
     )
     print(response)
     return str(response)
 
 
-def db_add_trip(uid, trip_id, src, dst, started, arrived, route, suggested_routes, trip_feedback):
+def db_get_trip(item):
     table_name = "trip"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-    print("Trip id is == ", trip_id)
+
+    # Get the item with the key
+    response = table.get_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
+    items = response['Items']
+    print(items)
+    return str(items)
+
+
+def db_add_trip(item):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    new_id = item.get('id')
+    if item.get('id') == "" or item.get('id') is None:
+        new_id = round(time.time() * 1000)
     response = table.put_item(
         Item={
-            'uid': uid,
-            'tripid': trip_id,
-            'src': src,
-            'dst': dst,
-            'started': arrived,
-            'started': started,
-            'route': route,
-            'suggestedRoutes': suggested_routes,
-            'tripFeeback': trip_feedback
+            'id': str(new_id),
+            'user_id': str(item.get("user_id")),
+            'src': item.get("src"),
+            'dst': item.get("dst"),
+            'started': item.get("started"),
+            'arrived': item.get("arrived"),
+            'route': item.get("route"),
+            'suggested_routes': item.get("suggested_routes"),
+            'trip_feedback': item.get("trip_feedback")
         }
     )
     print(response)
@@ -189,7 +247,7 @@ def db_add_route_pref(user_id, destination_id, medium, days_of_week):
     return str(response)
 
 
-def db_delete_place(key):
+def db_delete_place(item):
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -197,14 +255,14 @@ def db_delete_place(key):
 
     response = table.delete_item(
         Key={
-            'id': key
+            'id': str(item.get("id"))
         }
     )
     print(response)
     return str(response)
 
 
-def db_delete_trip(uid, tripid):
+def db_delete_trip(item):
     """
     :param uid: user id
     :param tripid: id of the trip in table
@@ -217,15 +275,16 @@ def db_delete_trip(uid, tripid):
     print("in delete trip")
     response = table.delete_item(
         Item={
-            'uid': uid
+            'id': item.get("id")
         }
     )
     print(response)
     return str(response)
 
 
-def db_view_next_trip(uid):
+def db_view_upcoming_trips(uid, interval):
     """
+    :param interval: Hours from now
     :param uid: user id
     :return: List of trips scheduled for today
     """
@@ -234,13 +293,16 @@ def db_view_next_trip(uid):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
-    # Define filters and projections
-    now = datetime.now()
-    date_time_now = now.strftime("%m-%d-%Y %H:%M:%S")
+    # Define time now and after the interval
+    from_time = datetime.now()
+    to_time = from_time + timedelta(hours=interval)
+    from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
+    to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
+    # Get today's day name
     curr_date = datetime.today()
     day_name = calendar.day_name[curr_date.weekday()]
     print(day_name)
-    fe = Key('user_id').eq(uid) and Attr('days_of_week.'+day_name).gte(date_time_now)
+    fe = Key('user_id').eq(uid) and Attr('days_of_week.' + day_name).gte(from_time) and Attr('days_of_week.' + day_name).lte(to_time)
     pe = "user_id, days_of_week, medium, dst"
     # Scan table with filters
     response = table.scan(
@@ -253,7 +315,47 @@ def db_view_next_trip(uid):
     return str(items)
 
 
-def db_get_places(user_id):
+def db_view_trip_history(uid):
+    """
+    :param uid: user id
+    :return: List of trips taken so far (complete and incomplete)
+    """
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Define time now and after the interval
+    time_now = datetime.now()
+    time_now = time_now.strftime("%m-%d-%Y %H:%M:%S")
+
+    # Add filter expression and projection expression
+    print("time now = ", time_now)
+    fe = Key('user_id').eq(str(uid)) and Attr('started').lte(time_now)
+    pe = "id, user_id, src, dst, started, arrived, route, suggested_routes, trip_feedback"
+    # Scan table with filters
+    response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+
+    items = response['Items']
+    print("items = ", items)
+    return str(items)
+
+
+def db_get_routes(item):
+    src = item.get("src")
+    dst = item.get("dst")
+    mode = item.get("mode")
+    response = ""
+    response = gmaps.directions(src, dst, mode="transit", departure_time=now)
+    items = response['Items']
+    print("items = ", items)
+    return str(items)
+
+
+def db_get_places(item):
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -264,8 +366,8 @@ def db_get_places(user_id):
         KeyConditionExpression=Key('user_id').eq(user_id)
     )   """
     # Define filters and projections
-    fe = Attr('user_id').eq(user_id)
-    pe = "user_id, place_name, lat, lon, tags"
+    fe = Attr('user_id').eq(item.get("user_id"))
+    pe = "id, user_id, place_name, address, lat, lon, tags"
     # Scan table with filters
     response = table.scan(
         FilterExpression=fe,
@@ -277,6 +379,6 @@ def db_get_places(user_id):
 
 
 if __name__ == "__main__":
-    #app.run(host='localhost', port=5001, debug=True)
-    app.run(host='0.0.0.0', port=80)
+    TransportationApp.run(host='localhost', port=5001, debug=True)
+    # app.run(host='0.0.0.0', port=80)
     print('Server running with flask')
