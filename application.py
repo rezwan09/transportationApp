@@ -8,7 +8,7 @@ import time
 import googlemaps
 from boto3.dynamodb.conditions import Key, Attr
 
-application = TransportationApp = Flask(__name__)
+application = app = Flask(__name__)
 
 gmaps = googlemaps.Client(key="AIzaSyBS6SMCbOMepaibpG71IjXDulkVlOLM8p8")
 
@@ -26,64 +26,64 @@ now = datetime.now()
                                      departure_time=now) """
 
 
-@TransportationApp.route('/')
+@app.route('/')
 def index():
     print("Got request in server")
     return "Hello World!"
 
 
-@TransportationApp.route('/place/all', methods=['GET'])
+@app.route('/place/all', methods=['GET'])
 def get_places():
     # Get list of places by user_id
     res = db_get_places(request.get_json())
     return res
 
 
-@TransportationApp.route('/place', methods=['GET'])
+@app.route('/place', methods=['GET'])
 def get_place():
     res = db_get_place(request.get_json())
     return res
 
 
-@TransportationApp.route('/place', methods=['POST'])
+@app.route('/place', methods=['POST'])
 def add_place():
     """ This will do insert or update"""
     res = db_add_place(request.get_json())
     return res
 
 
-@TransportationApp.route('/updatePlace', methods=['POST'])
+@app.route('/updatePlace', methods=['POST'])
 def update_place():
     """ Not needed currently"""
     res = db_update_place(request.get_json())
     return res
 
 
-@TransportationApp.route('/place/remove', methods=['POST'])
+@app.route('/place/remove', methods=['POST'])
 def remove_place():
     res = db_delete_place(request.get_json())
     return res
 
 
-@TransportationApp.route('/trip', methods=['GET'])
+@app.route('/trip', methods=['GET'])
 def get_trip():
     res = db_get_trip(request.get_json())
     return res
 
 
-@TransportationApp.route('/trip', methods=['POST'])
+@app.route('/trip', methods=['POST'])
 def add_trip():
     res = db_add_trip(request.get_json())
     return res
 
 
-@TransportationApp.route('/trip/remove', methods=['POST'])
+@app.route('/trip/remove', methods=['POST'])
 def remove_trip():
     res = db_delete_trip(request.get_json())
     return res
 
 
-@TransportationApp.route('/trips/upcoming', methods=['GET'])
+@app.route('/trip/upcoming', methods=['GET'])
 def view_upcoming_trips():
     # Get next trip that's planned in the preference table
     user_id = request.get_json().get("user_id")
@@ -92,14 +92,14 @@ def view_upcoming_trips():
     return res
 
 
-@TransportationApp.route('/trips/history', methods=['GET'])
+@app.route('/trip/history', methods=['GET'])
 def view_trip_history():
     user_id = request.get_json().get("user_id")
     res = db_view_trip_history(user_id)
     return res
 
 
-@TransportationApp.route('/addRoutePreference', methods=['POST'])
+@app.route('/addRoutePreference', methods=['POST'])
 def add_route_pref():
     user_id = request.get_json().get("user_id")
     destination_id = request.get_json().get("destination_id")
@@ -111,14 +111,10 @@ def add_route_pref():
 
 
 # Get the fastest and safest routes
-@TransportationApp.route('/routes', methods=['POST'])
+@app.route('/routes', methods=['POST'])
 def get_routes():
     res = db_get_routes(request.get_json())
     return res
-
-
-
-# DB call implementations---
 
 
 def db_add_place(item):
@@ -159,9 +155,7 @@ def db_get_place(item):
             'id': str(item.get("id"))
         }
     )
-    items = response['Items']
-    print(items)
-    return str(items)
+    return str(response)
 
 
 def db_update_place(item):
@@ -197,9 +191,8 @@ def db_get_trip(item):
             'id': str(item.get("id"))
         }
     )
-    items = response['Items']
-    print(items)
-    return str(items)
+
+    return str(response)
 
 
 def db_add_trip(item):
@@ -310,9 +303,7 @@ def db_view_upcoming_trips(uid, interval):
         ProjectionExpression=pe
     )
 
-    items = response['Items']
-    print("items = ", items)
-    return str(items)
+    return str(response)
 
 
 def db_view_trip_history(uid):
@@ -339,9 +330,7 @@ def db_view_trip_history(uid):
         ProjectionExpression=pe
     )
 
-    items = response['Items']
-    print("items = ", items)
-    return str(items)
+    return str(response)
 
 
 def db_get_routes(item):
@@ -375,10 +364,10 @@ def db_get_places(item):
     )
     items = response['Items']
     print(items)
-    return str(items)
+    return str(response)
 
 
 if __name__ == "__main__":
-    TransportationApp.run(host='localhost', port=5001, debug=True)
+    app.run(host='localhost', port=5001, debug=True)
     # app.run(host='0.0.0.0', port=80)
     print('Server running with flask')
