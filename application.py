@@ -76,9 +76,16 @@ def remove_trip():
     return res
 
 
+@app.route('/trip/next', methods=['GET'])
+def view_next_trip():
+    # Get one next trip
+    res = db_view_next_trip(request.get_json())
+    return res
+
+
 @app.route('/trip/upcoming', methods=['GET'])
 def view_upcoming_trips():
-    # Get next trip that's planned in the preference table
+    # Get all the trips within certain days, that are planned in the preference table
     res = db_view_upcoming_trips(request.get_json())
     return res
 
@@ -266,6 +273,27 @@ def db_delete_trip(item):
     return response
 
 
+def db_view_next_trip(item):
+    # Connection and resources
+    table_name = "user_route_preference"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+
+    # Get the params
+    user_id = request.get_json().get("user_id")
+    from_time = datetime.now()
+    from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
+
+    fe = Attr('user_id').eq(user_id) and Attr('arrived').gte(from_time)
+    # Scan table with filters
+    trip_table = dynamodb.Table("trip")
+    response = trip_table.scan(
+        FilterExpression=fe,
+        Limit=1
+    )
+    return response
+
+
 def db_view_upcoming_trips(item):
     # Get the params
     user_id = request.get_json().get("user_id")
@@ -332,11 +360,12 @@ def db_view_upcoming_trips(item):
                     db_add_trip(data)
         dt = dt + timedelta(days=1)
 
-    # Old code for showing single trips
-    """fe = Key('user_id').eq(uid) and Attr('days_of_week.' + day_name).gte(from_time) and Attr('days_of_week.' + day_name).lte(to_time)
+    # Modify this to show the next trips
+    """fe = Attr('user_id').eq(user_id) and Attr('arrived').gte(from_time) and Attr('arrived').lte(to_time)
     pe = "user_id, days_of_week, medium, dst"
     # Scan table with filters
-    response = table.scan(
+    trip_table = dynamodb.Table("trip")
+    response = trip_table.scan(
         FilterExpression=fe,
         ProjectionExpression=pe
     ) """
