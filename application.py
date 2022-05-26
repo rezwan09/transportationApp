@@ -10,20 +10,13 @@ from boto3.dynamodb.conditions import Key, Attr
 
 application = app = Flask(__name__)
 
-gmaps = googlemaps.Client(key="AIzaSyBS6SMCbOMepaibpG71IjXDulkVlOLM8p8")
+gmaps = googlemaps.Client(key="AIzaSyBoBDraxeL4lK2Ds0fwqNRm-acp6_b1PzY")
 
-# Geocoding an address
-#geocode_result = gmaps.geocode('1600 Amphitheatre Parkway, Mountain View, CA')
+# Geocoding an address and Look up an address with reverse geocoding
+# geocode_result = gmaps.geocode('1600 Amphitheatre Parkway, Mountain View, CA')
+# gmaps.reverse_geocode((40.714224, -73.961452))
 
-# Look up an address with reverse geocoding
-#reverse_geocode_result = gmaps.reverse_geocode((40.714224, -73.961452))
-#print("Geocode === ", geocode_result)
-# Request directions via public transit
 now = datetime.now()
-"""directions_result = gmaps.directions("Sydney Town Hall",
-                                     "Parramatta, NSW",
-                                     mode="transit",
-                                     departure_time=now) """
 
 
 @app.route('/')
@@ -86,9 +79,7 @@ def remove_trip():
 @app.route('/trip/upcoming', methods=['GET'])
 def view_upcoming_trips():
     # Get next trip that's planned in the preference table
-    user_id = request.get_json().get("user_id")
-    interval = request.get_json().get("interval")
-    res = db_view_upcoming_trips(user_id, interval)
+    res = db_view_upcoming_trips(request.get_json())
     return res
 
 
@@ -101,12 +92,7 @@ def view_trip_history():
 
 @app.route('/addRoutePreference', methods=['POST'])
 def add_route_pref():
-    user_id = request.get_json().get("user_id")
-    destination_id = request.get_json().get("destination_id")
-    medium = request.get_json().get("medium")
-    days_of_week = request.get_json().get("days_of_week")
-    print(user_id, destination_id, medium, days_of_week)
-    res = db_add_route_pref(user_id, destination_id, medium, days_of_week)
+    res = db_add_route_pref(request.get_json())
     return res
 
 
@@ -140,7 +126,7 @@ def db_add_place(item):
         }
     )
     print(response)
-    return str(response)
+    return response
 
 
 def db_get_place(item):
@@ -155,7 +141,12 @@ def db_get_place(item):
             'id': str(item.get("id"))
         }
     )
-    return str(response)
+    response = json.dumps(response, default=default_json)
+    return response
+
+
+def default_json(t):
+    return f'{t}'
 
 
 def db_update_place(item):
@@ -175,8 +166,7 @@ def db_update_place(item):
             ':new_name': item.get("name")
         }
     )
-    print(response)
-    return str(response)
+    return response
 
 
 def db_get_trip(item):
@@ -192,7 +182,7 @@ def db_get_trip(item):
         }
     )
 
-    return str(response)
+    return response
 
 
 def db_add_trip(item):
@@ -201,6 +191,7 @@ def db_add_trip(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
+    item = json.loads(json.dumps(item), parse_float=Decimal)
     # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
     new_id = item.get('id')
     if item.get('id') == "" or item.get('id') is None:
@@ -210,6 +201,8 @@ def db_add_trip(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'src': item.get("src"),
+            'src_lat': item.get("src_lat"),
+            'src_lon': item.get("src_lon"),
             'dst': item.get("dst"),
             'started': item.get("started"),
             'arrived': item.get("arrived"),
@@ -218,26 +211,24 @@ def db_add_trip(item):
             'trip_feedback': item.get("trip_feedback")
         }
     )
-    print(response)
-    return str(response)
+    return response
 
 
-def db_add_route_pref(user_id, destination_id, medium, days_of_week):
+def db_add_route_pref(item):
     table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-    print("User id is == ", user_id)
+
     response = table.put_item(
         Item={
-            'user_id': user_id,
-            'dst': destination_id,
-            'medium': medium,
-            'days_of_week': days_of_week
+            'user_id': item.get("user_id"),
+            'dst': item.get("dst"),
+            'medium': item.get("medium"),
+            'days_of_week': item.get("days_of_week")
         }
     )
-    print(response)
-    return str(response)
+    return response
 
 
 def db_delete_place(item):
@@ -252,7 +243,7 @@ def db_delete_place(item):
         }
     )
     print(response)
-    return str(response)
+    return response
 
 
 def db_delete_trip(item):
@@ -272,15 +263,17 @@ def db_delete_trip(item):
         }
     )
     print(response)
-    return str(response)
+    return response
 
 
-def db_view_upcoming_trips(uid, interval):
-    """
-    :param interval: Hours from now
-    :param uid: user id
-    :return: List of trips scheduled for today
-    """
+def db_view_upcoming_trips(item):
+    # Get the params
+    user_id = request.get_json().get("user_id")
+    src = request.get_json().get("src")
+    src_lat = request.get_json().get("src_lat")
+    src_lon = request.get_json().get("src_lon")
+    interval = request.get_json().get("interval")
+    # Connection and resources
     table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -288,22 +281,67 @@ def db_view_upcoming_trips(uid, interval):
 
     # Define time now and after the interval
     from_time = datetime.now()
-    to_time = from_time + timedelta(hours=interval)
+    to_time = from_time + timedelta(days=interval)
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
     to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
     # Get today's day name
     curr_date = datetime.today()
     day_name = calendar.day_name[curr_date.weekday()]
     print(day_name)
-    fe = Key('user_id').eq(uid) and Attr('days_of_week.' + day_name).gte(from_time) and Attr('days_of_week.' + day_name).lte(to_time)
+
+    # Modifying code to generate all trips "interval" hours ahead and putting them into trips table
+    # First scan the full table with the user_id
+    fe = Key('user_id').eq(str(user_id))
+    pe = "user_id, days_of_week." + day_name + ", medium, dst"
+    # Scan table with filters
+    response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+        # ,ExpressionAttributeNames={'#time_of_day': 'days_of_week.'+day_name}
+    )
+    rows = response['Items']
+
+    dt = date_start = datetime.now().date()
+    date_end = date_start + timedelta(days=interval)
+    while dt < date_end:
+        day_name = calendar.day_name[dt.weekday()]
+        for row in rows:
+            dst = row['dst']
+            medium = row['medium']
+            user_id = row['user_id']
+            schedule = row['days_of_week']
+            times = ''
+            times = schedule.get(day_name)
+            print(dt, day_name, times)
+            # Call the add trip method with all the info
+            data = {}
+            res = db_get_place({"id": src})
+            resp = json.loads(res)
+            src = resp.get("Item")
+            data['src'] = src
+            data['src_lat'] = src_lat
+            data['src_lon'] = src_lon
+            data['dst'] = dst
+            data['medium'] = medium
+            data['user_id'] = user_id
+            if times is not None:
+                for t in times:
+                    data['arrived'] = t
+                    json_data = json.dumps(data)
+                    print(json_data)
+                    db_add_trip(data)
+        dt = dt + timedelta(days=1)
+
+    # Old code for showing single trips
+    """fe = Key('user_id').eq(uid) and Attr('days_of_week.' + day_name).gte(from_time) and Attr('days_of_week.' + day_name).lte(to_time)
     pe = "user_id, days_of_week, medium, dst"
     # Scan table with filters
     response = table.scan(
         FilterExpression=fe,
         ProjectionExpression=pe
-    )
+    ) """
 
-    return str(response)
+    return response
 
 
 def db_view_trip_history(uid):
@@ -330,7 +368,7 @@ def db_view_trip_history(uid):
         ProjectionExpression=pe
     )
 
-    return str(response)
+    return response
 
 
 def db_get_routes(item):
@@ -341,7 +379,7 @@ def db_get_routes(item):
     response = gmaps.directions(src, dst, mode="transit", departure_time=now)
     items = response['Items']
     print("items = ", items)
-    return str(items)
+    return response
 
 
 def db_get_places(item):
@@ -362,9 +400,8 @@ def db_get_places(item):
         FilterExpression=fe,
         ProjectionExpression=pe
     )
-    items = response['Items']
-    print(items)
-    return str(response)
+    # items = response['Items']
+    return response
 
 
 if __name__ == "__main__":

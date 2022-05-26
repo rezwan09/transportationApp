@@ -1,0 +1,4 @@
+1. Notification System for Next Trip: Estimated arrival time, Arrive by this time
+2. Define trip Statuses
+3. Add src lat,lon for trip. Return full place object in src field
+4. Add actual start time and arrival time column
