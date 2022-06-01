@@ -83,6 +83,20 @@ def view_next_trip():
     return res
 
 
+@app.route('/trip/start', methods=['POST'])
+def start_trip():
+    # Initiate this trip
+    res = db_start_trip(request.get_json())
+    return res
+
+
+@app.route('/trip/end', methods=['POST'])
+def end_trip():
+    # End this trip
+    res = db_end_trip(request.get_json())
+    return res
+
+
 @app.route('/trip/upcoming', methods=['GET'])
 def view_upcoming_trips():
     # Get all the trips within certain days, that are planned in the preference table
@@ -213,6 +227,8 @@ def db_add_trip(item):
             'dst': item.get("dst"),
             'started': item.get("started"),
             'arrived': item.get("arrived"),
+            'scheduled_arrival': item.get("scheduled_arrival"),
+            'trip_status': item.get("trip_status"),
             'route': item.get("route"),
             'suggested_routes': item.get("suggested_routes"),
             'trip_feedback': item.get("trip_feedback")
@@ -294,6 +310,50 @@ def db_view_next_trip(item):
     return response
 
 
+def db_start_trip(item):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression='SET trip_status = :ts, started = :started, '
+                         'src = :src, src_lat = :src_lat, src_lon = :src_lon',
+        ExpressionAttributeValues={
+            ':started': item.get("started"),
+            ':src': item.get("src"),
+            ':src_lat': item.get("src_lat"),
+            ':src_lon': item.get("src_lon"),
+            ':ts': "STARTED"
+        }
+    )
+    return response
+
+
+def db_end_trip(item):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression='SET trip_status = :ts, arrived = :arrived',
+        ExpressionAttributeValues={
+            ':arrived': item.get("arrived"),
+            ':ts': "COMPLETED"
+        }
+    )
+    return response
+
+
 def db_view_upcoming_trips(item):
     # Get the params
     user_id = request.get_json().get("user_id")
@@ -320,14 +380,14 @@ def db_view_upcoming_trips(item):
     # Modifying code to generate all trips "interval" hours ahead and putting them into trips table
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "user_id, days_of_week." + day_name + ", medium, dst"
+    pe = "user_id, days_of_week, medium, dst"
     # Scan table with filters
-    response = table.scan(
+    pref_response = table.scan(
         FilterExpression=fe,
         ProjectionExpression=pe
         # ,ExpressionAttributeNames={'#time_of_day': 'days_of_week.'+day_name}
     )
-    rows = response['Items']
+    rows = pref_response['Items']
 
     dt = date_start = datetime.now().date()
     date_end = date_start + timedelta(days=interval)
@@ -340,7 +400,7 @@ def db_view_upcoming_trips(item):
             schedule = row['days_of_week']
             times = ''
             times = schedule.get(day_name)
-            print(dt, day_name, times)
+            # print(dt, day_name, times)
             # Call the add trip method with all the info
             data = {}
             res = db_get_place({"id": src})
@@ -352,24 +412,28 @@ def db_view_upcoming_trips(item):
             data['dst'] = dst
             data['medium'] = medium
             data['user_id'] = user_id
+            data['trip_status'] = "NOT_STARTED"
             if times is not None:
                 for t in times:
-                    data['arrived'] = t
+                    tm = datetime.strptime(t, "%H:%M:%S").time()
+                    dtc = datetime.combine(dt, tm)
+                    dtc = dtc.strftime("%m-%d-%Y %H:%M:%S")
+                    data['scheduled_arrival'] = dtc
                     json_data = json.dumps(data)
-                    print(json_data)
+                    # print(json_data)
                     db_add_trip(data)
         dt = dt + timedelta(days=1)
 
     # Modify this to show the next trips
-    """fe = Attr('user_id').eq(user_id) and Attr('arrived').gte(from_time) and Attr('arrived').lte(to_time)
-    pe = "user_id, days_of_week, medium, dst"
+    print(from_time, to_time)
+    fe = Attr('user_id').eq(user_id) and Attr('arrived').gte(from_time) and Attr('scheduled_arrival').lte(to_time)
+    # pe = "user_id, started, scheduled_arrival, src, dst, s"
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
-        FilterExpression=fe,
-        ProjectionExpression=pe
-    ) """
-
+        FilterExpression=fe
+        # ProjectionExpression=pe
+    )
     return response
 
 
