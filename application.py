@@ -465,18 +465,26 @@ def db_view_trip_history(uid):
     table = dynamodb.Table(table_name)
 
     # Define time now and after the interval
-    time_now = datetime.now()
-    time_now = time_now.strftime("%m-%d-%Y %H:%M:%S")
+    time_now_dt = datetime.now()
+    time_now = time_now_dt.strftime("%m-%d-%Y %H:%M:%S")
 
     # Add filter expression and projection expression
     print("time now = ", time_now)
-    fe = Key('user_id').eq(str(uid)) and Attr('started').lte(time_now)
-    pe = "id, user_id, src, dst, started, arrived, route, suggested_routes, trip_feedback"
+    fe = Attr('user_id').eq(str(uid)) & Attr('arrived').lte(time_now)
+    pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
+         "trip_feedback, trip_status"
     # Scan table with filters
     response = table.scan(
         FilterExpression=fe,
         ProjectionExpression=pe
     )
+    items = response["Items"]
+    for item in items:
+        if item.get("arrived") > (time_now_dt-timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
+            item['editable'] = "True"
+        else:
+            item['editable'] = "False"
+    response["Items"] = items
 
     return response
 
