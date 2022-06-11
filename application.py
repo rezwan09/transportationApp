@@ -151,7 +151,6 @@ def db_add_place(item):
 
 
 def db_get_place(item):
-    print("id in place = ", item.get("id"))
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -266,7 +265,6 @@ def db_delete_place(item):
             'id': str(item.get("id"))
         }
     )
-    print(response)
     return response
 
 
@@ -286,7 +284,6 @@ def db_delete_trip(item):
             'id': item.get("id")
         }
     )
-    print(response)
     return response
 
 
@@ -376,7 +373,7 @@ def db_view_upcoming_trips(item):
     to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
 
     # See if there are trips already generated then return, otherwise generate trips
-    print(from_time, to_time)
+    """print(from_time, to_time)
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').lte(to_time)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
@@ -384,7 +381,7 @@ def db_view_upcoming_trips(item):
         FilterExpression=fe
     )
     if len(response['Items']) != 0:
-        return response
+        return response """
 
     # Generate trips first then show
     # Get today's day name
@@ -419,10 +416,10 @@ def db_view_upcoming_trips(item):
             # Call the add trip method with all the info
             data = {}
             res = db_get_place({"id": src})
-            print(res)
+            #print(res)
             res_src = json.loads(res).get("Item")
             res = db_get_place({"id": dst})
-            print(res)
+            #print(res)
             res_dst = json.loads(res).get("Item")
             data['src'] = res_src
             data['src_lat'] = src_lat
@@ -438,19 +435,32 @@ def db_view_upcoming_trips(item):
                     dtc = dtc.strftime("%m-%d-%Y %H:%M:%S")
                     data['scheduled_arrival'] = dtc
                     json_data = json.dumps(data)
-                    # print(json_data)
-                    db_add_trip(data)
+
+                    # Temporary modification: If trip not found in table create it
+                    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(res_dst)
+                    trip_table = dynamodb.Table("trip")
+                    result = trip_table.scan(
+                        FilterExpression=fe
+                    )
+                    if len(result['Items']) == 0:
+                        db_add_trip(data)
         dt = dt + timedelta(days=1)
 
     # Show the trips generated in the last block
-    print(from_time, to_time)
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').lte(to_time)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
         FilterExpression=fe
     )
-    print(len(response["Items"]))
+    # Add the "Go in" time here
+    items = response["Items"]
+    for item in items:
+        dist = gmaps.distance_matrix(item.get('src').get('address'), item.get('dst').get('address'), "driving")
+        go_in_str = dist.get('rows')[0].get('elements')[0].get('duration').get('text')
+        item['duration'] = go_in_str
+    response["Items"] = items
+
     return response
 
 
@@ -480,7 +490,8 @@ def db_view_trip_history(uid):
     )
     items = response["Items"]
     for item in items:
-        if item.get("arrived") > (time_now_dt-timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
+        if item.get("trip_status") == "NOT_STARTED" \
+                and item.get("scheduled_arrival") > (time_now_dt-timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
             item['editable'] = "True"
         else:
             item['editable'] = "False"
@@ -496,7 +507,6 @@ def db_get_routes(item):
     response = ""
     response = gmaps.directions(src, dst, mode="transit", departure_time=now)
     items = response['Items']
-    print("items = ", items)
     return response
 
 
