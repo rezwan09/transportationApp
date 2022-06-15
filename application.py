@@ -130,6 +130,13 @@ def get_routes():
     return res
 
 
+# Get the fastest and safest routes
+@app.route('/report', methods=['POST'])
+def add_report():
+    res = db_add_report(request.get_json())
+    return res
+
+
 def db_add_place(item):
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -149,7 +156,8 @@ def db_add_place(item):
             'place_name': item.get("name"),
             'address': item.get("address"),
             'lat': item.get("lat"),
-            'lon': item.get("lon")
+            'lon': item.get("lon"),
+            'tags': item.get("tags")
         }
     )
     print(response)
@@ -188,9 +196,10 @@ def db_update_place(item):
         Key={
             'id': str(item.get("id"))
         },
-        UpdateExpression='SET place_name = :new_name',
+        UpdateExpression='SET place_name = :new_name, tags = :tags',
         ExpressionAttributeValues={
-            ':new_name': item.get("name")
+            ':new_name': item.get("name"),
+            ':tags': item.get("tags")
         }
     )
     return response
@@ -553,7 +562,29 @@ def db_get_places(item):
     # items = response['Items']
     return response
 
+def db_add_report(item):
+    table_name = "report"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
 
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    new_id = item.get('id')
+    if item.get('id') == "" or item.get('id') is None:
+        new_id = round(time.time() * 1000)
+
+    response = table.put_item(
+        Item={
+            'id': str(new_id),
+            'user_id': item.get("user_id"),
+            'issue': item.get("issue"),
+            'lat': item.get("lat"),
+            'lon': item.get("lon")
+        }
+    )
+    print(response)
+    return response
 if __name__ == "__main__":
     app.run(host='localhost', port=5001, debug=True)
     # app.run(host='0.0.0.0', port=80)
