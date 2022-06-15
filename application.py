@@ -117,6 +117,12 @@ def add_route_pref():
     return res
 
 
+@app.route('/getRoutePreference', methods=['GET'])
+def get_route_pref():
+    res = db_get_route_pref(request.get_json())
+    return res
+
+
 # Get the fastest and safest routes
 @app.route('/routes', methods=['GET'])
 def get_routes():
@@ -254,6 +260,20 @@ def db_add_route_pref(item):
     return response
 
 
+def db_get_route_pref(item):
+    table_name = "user_route_preference"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    return response
+
+
 def db_delete_place(item):
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -298,13 +318,15 @@ def db_view_next_trip(item):
     from_time = datetime.now()
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
 
-    fe = Attr('user_id').eq(user_id) and Attr('arrived').gte(from_time)
+    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
+         & Attr('trip_status').eq("NOT_STARTED")
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
         FilterExpression=fe,
         Limit=1
     )
+
     return response
 
 
@@ -512,7 +534,7 @@ def db_get_routes(item):
 
 def db_get_places(item):
     table_name = "place"
-    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1", )
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
