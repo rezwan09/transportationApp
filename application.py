@@ -562,8 +562,9 @@ def db_get_places(item):
     # items = response['Items']
     return response
 
+
 def db_add_report(item):
-    table_name = "report"
+    table_name = "trip_report"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
@@ -585,6 +586,8 @@ def db_add_report(item):
     )
     print(response)
     return response
+
+
 if __name__ == "__main__":
     app.run(host='localhost', port=5001, debug=True)
     # app.run(host='0.0.0.0', port=80)
