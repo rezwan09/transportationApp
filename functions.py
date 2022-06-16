@@ -9,9 +9,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 #client initiate gmaps client
-api_key = ""
-with open('google_maps_api.txt') as f:
-        api_key = f.readlines()[0]
+api_key = open('google_maps_api.txt').readlines()[0]
+brez_api = open('breezometer_api.txt').readlines()[0]
 gmaps = googlemaps.Client(key=api_key)
 
 """This method returns a list of the fastest suggested routes.
@@ -159,7 +158,7 @@ class Route:
 
 def breez_base_key():
     base = "https://api.breezometer.com/air-quality/v2/"
-    api_key = "c6b0bd78b028449a8518d901751b680b"
+    api_key = brez_api
     return (base,api_key)
 
 def fetch_point_aq(lat,lon):
@@ -284,7 +283,7 @@ def snap_points(points):
     for p in points:
         lat = p[0]
         lon = p[1]
-        url = "https://roads.googleapis.com/v1/snapToRoads?path=%f,%f&key=%s" % (lat,lon,api_key)
+        url = "https://roads.googleapis.com/v1/snapToRoads?path=%f,%f&key=AIzaSyCPn4Pny_cpmP3FE3c7ecQoDNaxsubEOZ0" % (lat,lon)
         response = requests.get(url)
         snapped_point = (response.json()['snappedPoints'][0]['location']['latitude'],response.json()['snappedPoints'][0]['location']['longitude'])
         snapped_points.append(snapped_point)
