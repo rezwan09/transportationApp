@@ -172,7 +172,7 @@ def average(lst):
 
 def gmaps_base_key():
     base = "https://maps.googleapis.com/maps/api/"
-    api_key = "AIzaSyCPn4Pny_cpmP3FE3c7ecQoDNaxsubEOZ0"
+    api_key = api_key
     return (base,api_key)
 
 def fetch_direction(A,B):
@@ -284,7 +284,7 @@ def snap_points(points):
     for p in points:
         lat = p[0]
         lon = p[1]
-        url = "https://roads.googleapis.com/v1/snapToRoads?path=%f,%f&key=AIzaSyCPn4Pny_cpmP3FE3c7ecQoDNaxsubEOZ0" % (lat,lon)
+        url = "https://roads.googleapis.com/v1/snapToRoads?path=%f,%f&key=%s" % (lat,lon,api_key)
         response = requests.get(url)
         snapped_point = (response.json()['snappedPoints'][0]['location']['latitude'],response.json()['snappedPoints'][0]['location']['longitude'])
         snapped_points.append(snapped_point)
