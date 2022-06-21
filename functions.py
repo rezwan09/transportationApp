@@ -5,7 +5,7 @@ import polyline
 from math import sin, cos, sqrt, atan2, radians
 import googlemaps
 import datetime
-import pandas as pd
+#import pandas as pd
 import matplotlib.pyplot as plt
 
 #client initiate gmaps client
@@ -171,7 +171,7 @@ def average(lst):
 
 def gmaps_base_key():
     base = "https://maps.googleapis.com/maps/api/"
-    api_key = api_key
+    api_key #= api_key
     return (base,api_key)
 
 def fetch_direction(A,B):
@@ -182,7 +182,7 @@ def fetch_direction(A,B):
 def decode_json_routes(routes_json):
     return list(map(lambda r:Route(r),routes_json))
 
-def fetch_routes(a,b, departure_time=datetime.dateime.now(),traffic_model='pessimistic'):
+def fetch_routes(a,b, departure_time=datetime.datetime.now(),traffic_model='pessimistic'):
     dirs = gmaps.directions(a,b,departure_time=departure_time, traffic_model= traffic_model)
     routes:List[Route] = decode_json_routes(dirs)
     return routes

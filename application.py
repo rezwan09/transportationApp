@@ -8,6 +8,8 @@ import time
 import googlemaps
 from boto3.dynamodb.conditions import Key, Attr
 
+import functions
+
 application = app = Flask(__name__)
 
 gmaps = googlemaps.Client(key="AIzaSyBoBDraxeL4lK2Ds0fwqNRm-acp6_b1PzY")
@@ -351,12 +353,13 @@ def db_start_trip(item):
             'id': str(item.get("id"))
         },
         UpdateExpression='SET trip_status = :ts, started = :started, '
-                         'src = :src, src_lat = :src_lat, src_lon = :src_lon',
+                         'src = :src, src_lat = :src_lat, src_lon = :src_lon, src_addr = :src_addr',
         ExpressionAttributeValues={
             ':started': item.get("started"),
             ':src': item.get("src"),
             ':src_lat': item.get("src_lat"),
             ':src_lon': item.get("src_lon"),
+            ':src_addr': item.get("src_addr"),
             ':ts': "STARTED"
         }
     )
@@ -390,6 +393,7 @@ def db_view_upcoming_trips(item):
     src = request.get_json().get("src")
     src_lat = request.get_json().get("src_lat")
     src_lon = request.get_json().get("src_lon")
+    src_addr = request.get_json().get("src_addr")
     interval = request.get_json().get("interval")
     # Connection and resources
     table_name = "user_route_preference"
@@ -402,17 +406,6 @@ def db_view_upcoming_trips(item):
     to_time = from_time + timedelta(days=interval)
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
     to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
-
-    # See if there are trips already generated then return, otherwise generate trips
-    """print(from_time, to_time)
-    fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').lte(to_time)
-    # Scan table with filters
-    trip_table = dynamodb.Table("trip")
-    response = trip_table.scan(
-        FilterExpression=fe
-    )
-    if len(response['Items']) != 0:
-        return response """
 
     # Generate trips first then show
     # Get today's day name
@@ -446,15 +439,16 @@ def db_view_upcoming_trips(item):
             # print(dt, day_name, times)
             # Call the add trip method with all the info
             data = {}
-            res = db_get_place({"id": src})
-            #print(res)
-            res_src = json.loads(res).get("Item")
+            res_src = src
+            if src:
+                res = db_get_place({"id": src})
+                res_src = json.loads(res).get("Item")
             res = db_get_place({"id": dst})
-            #print(res)
             res_dst = json.loads(res).get("Item")
             data['src'] = res_src
             data['src_lat'] = src_lat
             data['src_lon'] = src_lon
+            data['src_addr'] = src_addr
             data['dst'] = res_dst
             data['medium'] = medium
             data['user_id'] = user_id
@@ -478,7 +472,8 @@ def db_view_upcoming_trips(item):
         dt = dt + timedelta(days=1)
 
     # Show the trips generated in the last block
-    fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').lte(to_time)
+    fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
+        & Attr('scheduled_arrival').lte(to_time)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -487,9 +482,21 @@ def db_view_upcoming_trips(item):
     # Add the "Go in" time here
     items = response["Items"]
     for item in items:
-        dist = gmaps.distance_matrix(item.get('src').get('address'), item.get('dst').get('address'), "driving")
-        go_in_str = dist.get('rows')[0].get('elements')[0].get('duration').get('text')
-        item['duration'] = go_in_str
+        # dist = gmaps.distance_matrix(item.get('src').get('address'), item.get('dst').get('address'), "driving")
+        # go_in_str = dist.get('rows')[0].get('elements')[0].get('duration').get('text')
+        # item['duration'] = go_in_str
+        srcAddr, dstAddr = None, None
+        if item.get('src') is not None and item.get('src').get('address') is not None:
+            srcAddr = item.get('src').get('address')
+        else:
+            srcAddr = item.get('src_addr')
+        if item.get('dst') is not None and item.get('dst').get('address') is not None:
+            dstAddr = item.get('dst').get('address')
+        preferred_arrival = datetime.strptime(item.get('scheduled_arrival'), '%m-%d-%Y %H:%M:%S')
+        print(srcAddr, dstAddr, preferred_arrival)
+        res = functions.get_departure_time(srcAddr, dstAddr,
+                                           preferred_arrival)
+        print(res)
     response["Items"] = items
 
     return response
@@ -522,7 +529,7 @@ def db_view_trip_history(uid):
     items = response["Items"]
     for item in items:
         if item.get("trip_status") == "NOT_STARTED" \
-                and item.get("scheduled_arrival") > (time_now_dt-timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
+                and item.get("scheduled_arrival") > (time_now_dt - timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
             item['editable'] = "True"
         else:
             item['editable'] = "False"
@@ -552,7 +559,7 @@ def db_get_places(item):
         KeyConditionExpression=Key('user_id').eq(user_id)
     )   """
     # Define filters and projections
-    fe = Attr('user_id').eq(item.get("user_id"))
+    fe = Attr('user_id').eq(str(item.get("user_id")))
     pe = "id, user_id, place_name, address, lat, lon, tags"
     # Scan table with filters
     response = table.scan(
