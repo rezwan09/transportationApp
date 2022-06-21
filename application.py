@@ -496,7 +496,8 @@ def db_view_upcoming_trips(item):
         print(srcAddr, dstAddr, preferred_arrival)
         res = functions.get_departure_time(srcAddr, dstAddr,
                                            preferred_arrival)
-        print(res)
+        item['suggested_start_time'] = res[0]
+        item['estimated_duration'] = res[1]
     response["Items"] = items
 
     return response
