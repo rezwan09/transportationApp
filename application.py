@@ -241,7 +241,9 @@ def db_add_trip(item):
             'src': item.get("src"),
             'src_lat': item.get("src_lat"),
             'src_lon': item.get("src_lon"),
+            'src_addr': item.get("src_addr"),
             'dst': item.get("dst"),
+            'medium': item.get("medium"),
             'started': item.get("started"),
             'arrived': item.get("arrived"),
             'scheduled_arrival': item.get("scheduled_arrival"),
@@ -348,6 +350,16 @@ def db_start_trip(item):
     table = dynamodb.Table(table_name)
 
     item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    # If trip id not present, return with error
+    resp = table.get_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
+    if "Items" not in resp:
+        return resp
+
     response = table.update_item(
         Key={
             'id': str(item.get("id"))
@@ -473,7 +485,7 @@ def db_view_upcoming_trips(item):
 
     # Show the trips generated in the last block
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
-        & Attr('scheduled_arrival').lte(to_time)
+         & Attr('scheduled_arrival').lte(to_time)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -494,7 +506,7 @@ def db_view_upcoming_trips(item):
             dstAddr = item.get('dst').get('address')
 
         preferred_arrival = datetime.strptime(item.get('scheduled_arrival'), '%m-%d-%Y %H:%M:%S')
-        print(srcAddr, dstAddr, preferred_arrival)
+        # print(srcAddr, dstAddr, preferred_arrival)
         res = functions.get_departure_time(srcAddr, dstAddr,
                                            preferred_arrival)
         item['suggested_start_time'] = res[0]
