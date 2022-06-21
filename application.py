@@ -162,7 +162,7 @@ def db_add_place(item):
             'tags': item.get("tags")
         }
     )
-    print(response)
+    response['id'] = new_id
     return response
 
 
@@ -492,6 +492,7 @@ def db_view_upcoming_trips(item):
             srcAddr = item.get('src_addr')
         if item.get('dst') is not None and item.get('dst').get('address') is not None:
             dstAddr = item.get('dst').get('address')
+
         preferred_arrival = datetime.strptime(item.get('scheduled_arrival'), '%m-%d-%Y %H:%M:%S')
         print(srcAddr, dstAddr, preferred_arrival)
         res = functions.get_departure_time(srcAddr, dstAddr,
