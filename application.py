@@ -99,6 +99,13 @@ def end_trip():
     return res
 
 
+@app.route('/trip/feedback', methods=['POST'])
+def add_trip_feedback():
+    # End this trip
+    res = db_add_feedback(request.get_json())
+    return res
+
+
 @app.route('/trip/upcoming', methods=['GET'])
 def view_upcoming_trips():
     # Get all the trips within certain days, that are planned in the preference table
@@ -399,6 +406,24 @@ def db_end_trip(item):
     return response
 
 
+def db_add_feedback(item):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression='SET trip_feedback = :feedback',
+        ExpressionAttributeValues={
+            ':feedback': item.get("trip_feedback")
+        }
+    )
+    return response
+
+
 def db_view_upcoming_trips(item):
     # Get the params
     user_id = request.get_json().get("user_id")
@@ -601,6 +626,7 @@ def db_add_report(item):
             'id': str(new_id),
             'user_id': item.get("user_id"),
             'issue': item.get("issue"),
+            'description': item.get("description"),
             'lat': item.get("lat"),
             'lon': item.get("lon")
         }
