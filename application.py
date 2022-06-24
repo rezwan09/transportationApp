@@ -23,8 +23,22 @@ now = datetime.now()
 
 @app.route('/')
 def index():
-    print("Got request in server")
+    print("Transportation app server")
     return "Hello World!"
+
+
+@app.route('/user/settings', methods=['GET'])
+def get_settings():
+    # Get list of places by user_id
+    res = db_get_settings(request.get_json())
+    return res
+
+
+@app.route('/user/settings', methods=['POST'])
+def add_settings():
+    # Get list of places by user_id
+    res = db_add_settings(request.get_json())
+    return res
 
 
 @app.route('/place/all', methods=['GET'])
@@ -144,6 +158,43 @@ def get_routes():
 def add_report():
     res = db_add_report(request.get_json())
     return res
+
+
+def db_get_settings(item):
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get the item with the key
+    response = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    response = json.dumps(response, default=default_json)
+    return response
+
+
+def db_add_settings(item):
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.put_item(
+        Item={
+            'user_id': str(item.get("user_id")),
+            'name': item.get("name"),
+            'phone': item.get("phone"),
+            'alert_time': item.get("alert_time"),
+            'medium': item.get("medium"),
+            'preferred_route': item.get("preferred_route"),
+
+
+        }
+    )
+    return response
 
 
 def db_add_place(item):
@@ -534,7 +585,7 @@ def db_view_upcoming_trips(item):
         # print(srcAddr, dstAddr, preferred_arrival)
         res = functions.get_departure_time(srcAddr, dstAddr,
                                            preferred_arrival)
-        item['suggested_start_time'] = res[0]
+        item['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
         item['estimated_duration'] = res[1]
     response["Items"] = items
 
