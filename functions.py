@@ -26,54 +26,34 @@ gmaps = googlemaps.Client(key=api_key)
     """    
     
 def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
+    
+    routes_dict = {}
 
     #origin & first route
     try:
         routes = fetch_routes(A,B)
     except googlemaps.exceptions.ApiError as e:  # This is the correct syntax
-        print("No route found from %s to %s" % A,B)
+        print("No route found from %s to %s" % (A,B))
         return None
     
     # if no reported waypoints return first google alternative
-    if len(reported_points) == 0:
-        return routes
+    valid_routes = routes
+    if len(reported_points) != 0:
+        valid_routes = get_valid_routes(A,B,reported_points,n_search_points)
     
-    #else look for ways to avoid 
-    origin_x = routes[0].json_object['legs'][0]['start_location']['lng']
-    origin_y = routes[0].json_object['legs'][0]['start_location']['lat']
-
-    #waypoints
-    wp_x,wp_y = get_searchable_waypoints(origin_x,origin_y) #src x & y
+    # keep to top 3
+    if len(valid_routes) > 3:
+        valid_routes = valid_routes[:3]
     
-    all_routes_list = [] + routes
-    valid_routes_list = [] + routes
-    shortest_route = routes[0]
-    print(shortest_route.duration)
+    # fastest & cleanest
+    fastest_routes = valid_routes #top 3
+    cleanest_route = get_cleanest(fastest_routes)
+    
+    # add routes to response
+    routes_dict["fastest"] = fastest_routes
+    routes_dict["cleanest"] = cleanest_route
 
-    for i in range(0,n_search_points):
-        waypoint = "%f,%f" % (wp_y[i],wp_x[i])
-        try:
-            #get the routes
-            directions = gmaps.directions(A,B,waypoints=[waypoint])
-            valid_routes_list += decode_json_routes(directions)
-            all_routes_list += valid_routes_list
-            
-            #filter
-            for p in reported_points:
-                valid_routes_list = filter(lambda r: is_point_on_rout(p,r) == False,valid_routes_list)
-            
-            #set shortest
-            valid_routes_list.sort(key=lambda r:r.duration)
-            
-            new_route = min([shortest_route,valid_routes_list[0]],key=lambda r:r.duration)
-            if new_route.duration < shortest_route.duration:
-                shortest_route = new_route
-            
-        except googlemaps.exceptions.ApiError as e:  
-            continue
-
-    #print
-    return valid_routes_list[:3] #top 3
+    return routes_dict
 
     #TODO: We still need to add the mode of transportation
 
@@ -156,15 +136,55 @@ class Route:
         
 ## Functions
 
+def get_valid_routes(A,B,routes:List[Route], n_search_points=100):
+    
+    #else look for ways to avoid 
+    origin_x = routes[0].json_object['legs'][0]['start_location']['lng']
+    origin_y = routes[0].json_object['legs'][0]['start_location']['lat']
+
+    #waypoints
+    wp_x,wp_y = get_searchable_waypoints(origin_x,origin_y) #src x & y
+    
+    all_routes_list = [] + routes
+    valid_routes_list = [] + routes
+    shortest_route = routes[0]
+    print(shortest_route.duration)
+
+    for i in range(0,n_search_points):
+        waypoint = "%f,%f" % (wp_y[i],wp_x[i])
+        try:
+            #get the routes
+            directions = gmaps.directions(A,B,waypoints=[waypoint])
+            valid_routes_list += decode_json_routes(directions)
+            all_routes_list += valid_routes_list
+            
+            #filter
+            for p in reported_points:
+                valid_routes_list = filter(lambda r: is_point_on_rout(p,r) == False,valid_routes_list)
+            
+            #set shortest
+            valid_routes_list.sort(key=lambda r:r.duration)
+            
+            new_route = min([shortest_route,valid_routes_list[0]],key=lambda r:r.duration)
+            if new_route.duration < shortest_route.duration:
+                shortest_route = new_route
+            
+        except googlemaps.exceptions.ApiError as e:  
+            continue
+    
+    #return valid routes list
+    return valid_routes_list
+
 def breez_base_key():
     base = "https://api.breezometer.com/air-quality/v2/"
-    api_key = brez_api
+    api_key = "1003a28cf3bd496ab89428fbe1ed667f"
     return (base,api_key)
 
 def fetch_point_aq(lat,lon):
     (base,api_key) = breez_base_key()
     api = "current-conditions?lat=%f&lon=%f&features=pollutants_concentrations&key=%s" % (lat,lon,api_key)
-    return requests.get(base+api).json()['data']
+    res = requests.get(base+api).json()    
+    return res['data']
 
 def average(lst):
     return sum(lst) / len(lst)
@@ -175,15 +195,17 @@ def gmaps_base_key():
     return (base,api_key)
 
 def fetch_direction(A,B):
-    (base,key) = gmaps_base_key()
     res = gmaps.directions(A,B,alternatives=True)
     return res
 
 def decode_json_routes(routes_json):
     return list(map(lambda r:Route(r),routes_json))
 
-def fetch_routes(a,b, departure_time=datetime.datetime.now(),traffic_model='pessimistic'):
-    dirs = gmaps.directions(a,b,departure_time=departure_time, traffic_model= traffic_model)
+def fetch_routes(a,b, departure_time=None,traffic_model='pessimistic'):
+    if departure_time == None:
+        dirs = gmaps.directions(a,b, alternatives=True)
+    else:
+        dirs = gmaps.directions(a,b,departure_time=departure_time, traffic_model= traffic_model,alternatives=True)
     routes:List[Route] = decode_json_routes(dirs)
     return routes
 
@@ -196,8 +218,14 @@ def get_routes(data):
 def get_points(route):
     return list(map(lambda x:x['start_location'],route['legs'][0]['steps'])) + list(map(lambda x:x['end_location'],route['legs'][0]['steps']))
 
+def get_points_from(route:Route):
+    return list(map(lambda x:x['start_location'],route.steps)) + list(map(lambda x:x['end_location'],route.steps))
+
 def get_durations(routes):
     return list(map(lambda x: x['legs'][0]['duration']['text'],routes))
+
+def get_durations_from(routes:List[Route]):
+    return list(map(lambda x: x.duration,routes))
 
 def get_pm25_list(points):
     route_pm25 = []
@@ -210,24 +238,39 @@ def get_pm25_list(points):
     
     return route_pm25
 
-def pms_durations(A,B):
-    gres = fetch_direction(A,B)
-    routes = get_routes(gres)
-
+def pms_durations_from(routes:List[Route]):
+    
+    #pm25
     pm25_lists = []
     for route in routes:
-        points = get_points(route)
+        points = get_points_from(route)
         pm25_list = get_pm25_list(points=points)
         pm25_lists.append(pm25_list)
 
+    #calc avg
     averages = []
     for pm25_list in pm25_lists:
         avg = average(pm25_list)
         averages.append(avg)
 
-    durations = get_durations(routes)
-
+    #calc dur
+    durations = get_durations_from(routes)
+    
     return (averages,durations)
+
+def get_cleanest(routes):    
+    avgs, durs = pms_durations_from(routes) #TODO:PUT DURATION IN THE FORMULA
+    
+    min_i = 0
+    for i in range(1,len(routes)):
+        if avgs[min_i] > avgs[i]:
+            min_i = i
+    
+    return routes[min_i]
+
+def pms_durations(A,B):
+    routes = fetch_direction(A,B)
+    return pms_durations(routes)
 
 def distance_in_meters(p1,p2):
     from math import sin, cos, sqrt, atan2, radians
