@@ -27,7 +27,7 @@ def index():
     return "Hello World!"
 
 
-@app.route('/user/settings', methods=['GET'])
+@app.route('/user/settings', methods=['POST'])
 def get_settings():
     # Get list of places by user_id
     res = db_get_settings(request.get_json())
@@ -41,14 +41,14 @@ def add_settings():
     return res
 
 
-@app.route('/place/all', methods=['GET'])
+@app.route('/place/all', methods=['POST'])
 def get_places():
     # Get list of places by user_id
     res = db_get_places(request.get_json())
     return res
 
 
-@app.route('/place', methods=['GET'])
+@app.route('/place', methods=['POST'])
 def get_place():
     res = db_get_place(request.get_json())
     return res
@@ -74,7 +74,7 @@ def remove_place():
     return res
 
 
-@app.route('/trip', methods=['GET'])
+@app.route('/trip', methods=['POST'])
 def get_trip():
     res = db_get_trip(request.get_json())
     return res
@@ -92,7 +92,7 @@ def remove_trip():
     return res
 
 
-@app.route('/trip/next', methods=['GET'])
+@app.route('/trip/next', methods=['POST'])
 def view_next_trip():
     # Get one next trip
     res = db_view_next_trip(request.get_json())
@@ -120,14 +120,14 @@ def add_trip_feedback():
     return res
 
 
-@app.route('/trip/upcoming', methods=['GET'])
+@app.route('/trip/upcoming', methods=['POST'])
 def view_upcoming_trips():
     # Get all the trips within certain days, that are planned in the preference table
     res = db_view_upcoming_trips(request.get_json())
     return res
 
 
-@app.route('/trip/history', methods=['GET'])
+@app.route('/trip/history', methods=['POST'])
 def view_trip_history():
     user_id = request.get_json().get("user_id")
     res = db_view_trip_history(user_id)
@@ -140,14 +140,14 @@ def add_route_pref():
     return res
 
 
-@app.route('/getRoutePreference', methods=['GET'])
+@app.route('/getRoutePreference', methods=['POST'])
 def get_route_pref():
     res = db_get_route_pref(request.get_json())
     return res
 
 
 # Get the fastest and safest routes
-@app.route('/routes', methods=['GET'])
+@app.route('/routes', methods=['POST'])
 def get_routes():
     res = db_get_routes(request.get_json())
     return res
@@ -410,13 +410,11 @@ def db_start_trip(item):
     item = json.loads(json.dumps(item), parse_float=Decimal)
 
     # If trip id not present, return with error
-    resp = table.get_item(
+    """ resp = table.get_item(
         Key={
             'id': str(item.get("id"))
         }
-    )
-    if "Items" not in resp:
-        return resp
+    ) """
 
     response = table.update_item(
         Key={
@@ -631,10 +629,9 @@ def db_view_trip_history(uid):
 def db_get_routes(item):
     src = item.get("src")
     dst = item.get("dst")
-    mode = item.get("mode")
-    response = ""
-    response = gmaps.directions(src, dst, mode="transit", departure_time=now)
-    items = response['Items']
+    medium = item.get("medium")
+    print(src, dst, medium)
+    response = functions.calc_fastest_routes(src, dst, [], 100)
     return response
 
 
