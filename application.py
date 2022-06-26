@@ -27,14 +27,14 @@ def index():
     return "Hello World!"
 
 
-@app.route('/user/settings', methods=['POST'])
+@app.route('/user/settings/get', methods=['POST'])
 def get_settings():
     # Get list of places by user_id
     res = db_get_settings(request.get_json())
     return res
 
 
-@app.route('/user/settings', methods=['POST'])
+@app.route('/user/settings/add', methods=['POST'])
 def add_settings():
     # Get list of places by user_id
     res = db_add_settings(request.get_json())
@@ -48,13 +48,13 @@ def get_places():
     return res
 
 
-@app.route('/place', methods=['POST'])
+@app.route('/place/get', methods=['POST'])
 def get_place():
     res = db_get_place(request.get_json())
     return res
 
 
-@app.route('/place', methods=['POST'])
+@app.route('/place/add', methods=['POST'])
 def add_place():
     """ This will do insert or update"""
     res = db_add_place(request.get_json())
@@ -74,13 +74,13 @@ def remove_place():
     return res
 
 
-@app.route('/trip', methods=['POST'])
+@app.route('/trip/get', methods=['POST'])
 def get_trip():
     res = db_get_trip(request.get_json())
     return res
 
 
-@app.route('/trip', methods=['POST'])
+@app.route('/trip/add', methods=['POST'])
 def add_trip():
     res = db_add_trip(request.get_json())
     return res
@@ -394,8 +394,7 @@ def db_view_next_trip(item):
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
-        FilterExpression=fe,
-        Limit=1
+        FilterExpression=fe
     )
 
     return response
@@ -627,10 +626,10 @@ def db_view_trip_history(uid):
 
 
 def db_get_routes(item):
+    print("In routes")
     src = item.get("src")
     dst = item.get("dst")
     medium = item.get("medium")
-    print(src, dst, medium)
     response = functions.calc_fastest_routes(src, dst, [], 100)
     return response
 
