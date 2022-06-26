@@ -610,8 +610,8 @@ def db_view_trip_history(uid):
          "trip_feedback, trip_status"
     # Scan table with filters
     response = table.scan(
-        FilterExpression=fe,
-        ProjectionExpression=pe
+        FilterExpression=fe
+        # ,ProjectionExpression=pe
     )
     items = response["Items"]
     for item in items:
