@@ -5,7 +5,6 @@ import polyline
 from math import sin, cos, sqrt, atan2, radians
 import googlemaps
 import datetime
-#import pandas as pd
 import matplotlib.pyplot as plt
 
 #client initiate gmaps client
@@ -39,7 +38,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
     # if no reported waypoints return first google alternative
     valid_routes = routes
     if len(reported_points) != 0:
-        valid_routes = get_valid_routes(A,B,reported_points,n_search_points)
+        valid_routes = get_valid_routes(routes,reported_points,n_search_points)
     
     # keep to top 3
     if len(valid_routes) > 3:
@@ -50,8 +49,8 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
     cleanest_route = get_cleanest(fastest_routes)
     
     # add routes to response
-    routes_dict["fastest"] = fastest_routes
-    routes_dict["cleanest"] = cleanest_route
+    routes_dict["fastest"] = list(map(lambda r: r.json_object, fastest_routes))
+    routes_dict["cleanest"] = cleanest_route.json_object
 
     return routes_dict
 
@@ -136,7 +135,7 @@ class Route:
         
 ## Functions
 
-def get_valid_routes(A,B,routes:List[Route], n_search_points=100):
+def get_valid_routes(routes:List[Route],reported_points,n_search_points=100):
     
     #else look for ways to avoid 
     origin_x = routes[0].json_object['legs'][0]['start_location']['lng']
@@ -154,8 +153,8 @@ def get_valid_routes(A,B,routes:List[Route], n_search_points=100):
         waypoint = "%f,%f" % (wp_y[i],wp_x[i])
         try:
             #get the routes
-            directions = gmaps.directions(A,B,waypoints=[waypoint])
-            valid_routes_list += decode_json_routes(directions)
+            directions = gmaps.directions(origin_x,origin_y,waypoints=[waypoint])
+            valid_routes_list += directions
             all_routes_list += valid_routes_list
             
             #filter
