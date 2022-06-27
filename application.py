@@ -23,24 +23,38 @@ now = datetime.now()
 
 @app.route('/')
 def index():
-    print("Got request in server")
+    print("Transportation app server")
     return "Hello World!"
 
 
-@app.route('/place/all', methods=['GET'])
+@app.route('/user/settings/get', methods=['POST'])
+def get_settings():
+    # Get list of places by user_id
+    res = db_get_settings(request.get_json())
+    return res
+
+
+@app.route('/user/settings/add', methods=['POST'])
+def add_settings():
+    # Get list of places by user_id
+    res = db_add_settings(request.get_json())
+    return res
+
+
+@app.route('/place/all', methods=['POST'])
 def get_places():
     # Get list of places by user_id
     res = db_get_places(request.get_json())
     return res
 
 
-@app.route('/place', methods=['GET'])
+@app.route('/place/get', methods=['POST'])
 def get_place():
     res = db_get_place(request.get_json())
     return res
 
 
-@app.route('/place', methods=['POST'])
+@app.route('/place/add', methods=['POST'])
 def add_place():
     """ This will do insert or update"""
     res = db_add_place(request.get_json())
@@ -60,13 +74,13 @@ def remove_place():
     return res
 
 
-@app.route('/trip', methods=['GET'])
+@app.route('/trip/get', methods=['POST'])
 def get_trip():
     res = db_get_trip(request.get_json())
     return res
 
 
-@app.route('/trip', methods=['POST'])
+@app.route('/trip/add', methods=['POST'])
 def add_trip():
     res = db_add_trip(request.get_json())
     return res
@@ -78,7 +92,7 @@ def remove_trip():
     return res
 
 
-@app.route('/trip/next', methods=['GET'])
+@app.route('/trip/next', methods=['POST'])
 def view_next_trip():
     # Get one next trip
     res = db_view_next_trip(request.get_json())
@@ -106,14 +120,14 @@ def add_trip_feedback():
     return res
 
 
-@app.route('/trip/upcoming', methods=['GET'])
+@app.route('/trip/upcoming', methods=['POST'])
 def view_upcoming_trips():
     # Get all the trips within certain days, that are planned in the preference table
     res = db_view_upcoming_trips(request.get_json())
     return res
 
 
-@app.route('/trip/history', methods=['GET'])
+@app.route('/trip/history', methods=['POST'])
 def view_trip_history():
     user_id = request.get_json().get("user_id")
     res = db_view_trip_history(user_id)
@@ -126,14 +140,14 @@ def add_route_pref():
     return res
 
 
-@app.route('/getRoutePreference', methods=['GET'])
+@app.route('/getRoutePreference', methods=['POST'])
 def get_route_pref():
     res = db_get_route_pref(request.get_json())
     return res
 
 
 # Get the fastest and safest routes
-@app.route('/routes', methods=['GET'])
+@app.route('/routes', methods=['POST'])
 def get_routes():
     res = db_get_routes(request.get_json())
     return res
@@ -144,6 +158,43 @@ def get_routes():
 def add_report():
     res = db_add_report(request.get_json())
     return res
+
+
+def db_get_settings(item):
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get the item with the key
+    response = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    response = json.dumps(response, default=default_json)
+    return response
+
+
+def db_add_settings(item):
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.put_item(
+        Item={
+            'user_id': str(item.get("user_id")),
+            'name': item.get("name"),
+            'phone': item.get("phone"),
+            'alert_time': item.get("alert_time"),
+            'medium': item.get("medium"),
+            'preferred_route': item.get("preferred_route"),
+
+
+        }
+    )
+    return response
 
 
 def db_add_place(item):
@@ -254,6 +305,8 @@ def db_add_trip(item):
             'started': item.get("started"),
             'arrived': item.get("arrived"),
             'scheduled_arrival': item.get("scheduled_arrival"),
+            'suggested_start_time': item.get("suggested_start_time"),
+            'estimated_duration': item.get("estimated_duration"),
             'trip_status': item.get("trip_status"),
             'route': item.get("route"),
             'suggested_routes': item.get("suggested_routes"),
@@ -329,7 +382,6 @@ def db_delete_trip(item):
 
 def db_view_next_trip(item):
     # Connection and resources
-    table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
 
@@ -338,15 +390,23 @@ def db_view_next_trip(item):
     from_time = datetime.now()
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
 
+    # Scan trip table
     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
          & Attr('trip_status').eq("NOT_STARTED")
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
-        FilterExpression=fe,
-        Limit=1
+        FilterExpression=fe
     )
-
+    lowest = response["Items"][0].get("scheduled_arrival")
+    lowest_row = response["Items"][0]
+    for row in response["Items"]:
+        if row.get("scheduled_arrival") < lowest:
+            lowest = row.get("scheduled_arrival")
+            lowest_row = row
+    response["Item"] = lowest_row
+    response["Count"] = 1
+    del response["Items"]
     return response
 
 
@@ -359,13 +419,11 @@ def db_start_trip(item):
     item = json.loads(json.dumps(item), parse_float=Decimal)
 
     # If trip id not present, return with error
-    resp = table.get_item(
+    """ resp = table.get_item(
         Key={
             'id': str(item.get("id"))
         }
-    )
-    if "Items" not in resp:
-        return resp
+    ) """
 
     response = table.update_item(
         Key={
@@ -496,9 +554,22 @@ def db_view_upcoming_trips(item):
                     dtc = datetime.combine(dt, tm)
                     dtc = dtc.strftime("%m-%d-%Y %H:%M:%S")
                     data['scheduled_arrival'] = dtc
-                    json_data = json.dumps(data)
+                    # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
+                    srcAddr, dstAddr = None, None
+                    if src is not None and res_src.get('address') is not None:
+                        srcAddr = res_src.get('address')
+                    else:
+                        srcAddr = src_addr
+                    if dst is not None and res_dst.get('address') is not None:
+                        dstAddr = res_dst.get('address')
 
-                    # Temporary modification: If trip not found in table create it
+                    preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
+                    res = functions.get_departure_time(srcAddr, dstAddr,
+                                                       preferred_arrival)
+                    data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                    data['estimated_duration'] = res[1]
+                    json_data = json.dumps(data)
+                    # Optimization needed: If trip not found in table create it
                     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(res_dst)
                     trip_table = dynamodb.Table("trip")
                     result = trip_table.scan(
@@ -516,27 +587,6 @@ def db_view_upcoming_trips(item):
     response = trip_table.scan(
         FilterExpression=fe
     )
-    # Add the "Go in" time here
-    items = response["Items"]
-    for item in items:
-        # dist = gmaps.distance_matrix(item.get('src').get('address'), item.get('dst').get('address'), "driving")
-        # go_in_str = dist.get('rows')[0].get('elements')[0].get('duration').get('text')
-        # item['duration'] = go_in_str
-        srcAddr, dstAddr = None, None
-        if item.get('src') is not None and item.get('src').get('address') is not None:
-            srcAddr = item.get('src').get('address')
-        else:
-            srcAddr = item.get('src_addr')
-        if item.get('dst') is not None and item.get('dst').get('address') is not None:
-            dstAddr = item.get('dst').get('address')
-
-        preferred_arrival = datetime.strptime(item.get('scheduled_arrival'), '%m-%d-%Y %H:%M:%S')
-        # print(srcAddr, dstAddr, preferred_arrival)
-        res = functions.get_departure_time(srcAddr, dstAddr,
-                                           preferred_arrival)
-        item['suggested_start_time'] = res[0]
-        item['estimated_duration'] = res[1]
-    response["Items"] = items
 
     return response
 
@@ -562,8 +612,8 @@ def db_view_trip_history(uid):
          "trip_feedback, trip_status"
     # Scan table with filters
     response = table.scan(
-        FilterExpression=fe,
-        ProjectionExpression=pe
+        FilterExpression=fe
+        # ,ProjectionExpression=pe
     )
     items = response["Items"]
     for item in items:
@@ -578,12 +628,11 @@ def db_view_trip_history(uid):
 
 
 def db_get_routes(item):
+    print("In routes")
     src = item.get("src")
     dst = item.get("dst")
-    mode = item.get("mode")
-    response = ""
-    response = gmaps.directions(src, dst, mode="transit", departure_time=now)
-    items = response['Items']
+    medium = item.get("medium")
+    response = functions.calc_fastest_routes(src, dst, [], 100)
     return response
 
 
