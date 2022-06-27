@@ -1,7 +1,13 @@
-1. Notification System for Next Trip: Estimated arrival time, Arrive by this time
-2. Define trip Statuses (NOT_STARTED, STARTED, COMPLETED)
-3. Add src lat,lon for trip. Return full place object in src and dst field
+1. Notification System for Next Trip: Estimated arrival time, Arrive by this time [Not Started]
+2. Define trip Statuses (NOT_STARTED, STARTED, COMPLETED) [Done]
+3. Add src lat,lon for trip. Return full place object in src and dst field [Done]
 4. Add actual start time and arrival time column
-5. Add feedback/rating API
-6. Add report API
+5. Add feedback/rating API [Done]
+6. Add report API [Done]
+
+### Issues
+1. Add pref to places all [Done]
+2. Trips Missed/Completed? [Ongoing]
+3. Trips History (Src details missing) [Check]
+4. Update User settings as needed [Not started]
 
