@@ -212,7 +212,7 @@ def db_add_place(item):
     response = table.put_item(
         Item={
             'id': str(new_id),
-            'user_id': item.get("user_id"),
+            'user_id': str(item.get("user_id")),
             'place_name': item.get("name"),
             'address': item.get("address"),
             'lat': item.get("lat"),
@@ -322,10 +322,15 @@ def db_add_route_pref(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
+    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    new_id = item.get('id')
+    if item.get('id') == "" or item.get('id') is None:
+        new_id = round(time.time() * 1000)
     response = table.put_item(
         Item={
-            'user_id': item.get("user_id"),
-            'dst': item.get("dst"),
+            'id': str(new_id),
+            'user_id': str(item.get("user_id")),
+            'dst': str(item.get("dst")),
             'medium': item.get("medium"),
             'days_of_week': item.get("days_of_week")
         }
@@ -338,11 +343,10 @@ def db_get_route_pref(item):
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-
-    response = table.get_item(
-        Key={
-            'user_id': str(item.get("user_id"))
-        }
+    print(item)
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('dst').eq(str(item.get("dst")))
+    response = table.scan(
+        FilterExpression=fe
     )
     return response
 
@@ -398,6 +402,8 @@ def db_view_next_trip(item):
     response = trip_table.scan(
         FilterExpression=fe
     )
+
+    # Find the trip with the lowest scheduled time
     lowest = response["Items"][0].get("scheduled_arrival")
     lowest_row = response["Items"][0]
     for row in response["Items"]:
@@ -642,10 +648,6 @@ def db_get_places(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
-    # query
-    """response = table.query(
-        KeyConditionExpression=Key('user_id').eq(user_id)
-    )   """
     # Define filters and projections
     fe = Attr('user_id').eq(str(item.get("user_id")))
     pe = "id, user_id, place_name, address, lat, lon, tags"
@@ -654,7 +656,15 @@ def db_get_places(item):
         FilterExpression=fe,
         ProjectionExpression=pe
     )
-    # items = response['Items']
+
+    # Append preferences for each destination place
+    for row in response["Items"]:
+        pref_table = dynamodb.Table("user_route_preference")
+        fe_pref = Attr('user_id').eq(row.get("user_id")) & Attr('dst').eq(row.get("id"))
+        pref_res = pref_table.scan(
+            FilterExpression=fe_pref
+        )
+        row['route_preference'] = pref_res["Items"]
     return response
 
 
