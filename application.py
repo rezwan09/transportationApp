@@ -322,13 +322,8 @@ def db_add_route_pref(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
-    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
-    new_id = item.get('id')
-    if item.get('id') == "" or item.get('id') is None:
-        new_id = round(time.time() * 1000)
     response = table.put_item(
         Item={
-            'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'dst': str(item.get("dst")),
             'medium': item.get("medium"),
@@ -404,14 +399,19 @@ def db_view_next_trip(item):
     )
 
     # Find the trip with the lowest scheduled time
-    lowest = response["Items"][0].get("scheduled_arrival")
-    lowest_row = response["Items"][0]
-    for row in response["Items"]:
-        if row.get("scheduled_arrival") < lowest:
-            lowest = row.get("scheduled_arrival")
-            lowest_row = row
-    response["Item"] = lowest_row
-    response["Count"] = 1
+    if not response["Items"]:
+        response["Count"] = 0
+        response["Item"] = None
+    else:
+        lowest = response["Items"][0].get("scheduled_arrival")
+        lowest_row = response["Items"][0]
+        for row in response["Items"]:
+            if row.get("scheduled_arrival") < lowest:
+                lowest = row.get("scheduled_arrival")
+                lowest_row = row
+        response["Item"] = lowest_row
+        response["Count"] = 1
+
     del response["Items"]
     return response
 
@@ -684,7 +684,7 @@ def db_get_routes(item):
     for row in items:
         point = (str(row.get("lat")), str(row.get("lat")))
         point_list.append(point)
-    print(point_list)
+    print("Checkpoints = ", point_list)
     response = functions.calc_fastest_routes(src, dst, [], 100)
     return response
 
