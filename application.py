@@ -685,7 +685,7 @@ def db_get_routes(item):
         point = (str(row.get("lat")), str(row.get("lat")))
         point_list.append(point)
     print(point_list)
-    response = functions.calc_fastest_routes(src, dst, point_list, 100)
+    response = functions.calc_fastest_routes(src, dst, [], 100)
     return response
 
 
