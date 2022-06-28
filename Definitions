@@ -1,0 +1,7 @@
+"""Here we will define Constants, Types and Definitions to be used across Front and Back End"""
+------------------------------------*******************-----------------------------------------
+
+***Type of reports in Report API
+1. ROAD_CLOSURE
+2. ACCIDENT
+3. OTHER

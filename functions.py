@@ -168,7 +168,7 @@ def get_valid_routes(routes:List[Route],reported_points,n_search_points=100):
             if new_route.duration < shortest_route.duration:
                 shortest_route = new_route
             
-        except googlemaps.exceptions.ApiError as e:  
+        except googlemaps.exceptions.ApiError as e:
             continue
     
     #return valid routes list

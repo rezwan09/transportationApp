@@ -633,15 +633,6 @@ def db_view_trip_history(uid):
     return response
 
 
-def db_get_routes(item):
-    print("In routes")
-    src = item.get("src")
-    dst = item.get("dst")
-    medium = item.get("medium")
-    response = functions.calc_fastest_routes(src, dst, [], 100)
-    return response
-
-
 def db_get_places(item):
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1", )
@@ -668,6 +659,36 @@ def db_get_places(item):
     return response
 
 
+def db_get_routes(item):
+    table_name = "trip_report"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1", )
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get params
+    src = item.get("src")
+    dst = item.get("dst")
+    medium = item.get("medium")
+
+    # Get the eligible reported points from report table by time and location
+    time_lower = datetime.now() - timedelta(hours=12)
+    time_lower = time_lower.strftime("%m-%d-%Y %H:%M:%S")
+    fe = Attr('issue').eq("ROAD_CLOSURE") & Attr('report_time').gte(time_lower)
+    pe = "lat, lon"
+    report_res = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+    items = report_res["Items"]
+    point_list = []
+    for row in items:
+        point = (str(row.get("lat")), str(row.get("lat")))
+        point_list.append(point)
+    print(point_list)
+    response = functions.calc_fastest_routes(src, dst, point_list, 100)
+    return response
+
+
 def db_add_report(item):
     table_name = "trip_report"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -687,10 +708,11 @@ def db_add_report(item):
             'issue': item.get("issue"),
             'description': item.get("description"),
             'lat': item.get("lat"),
-            'lon': item.get("lon")
+            'lon': item.get("lon"),
+            'report_time': datetime.now().strftime("%m-%d-%Y %H:%M:%S")
         }
     )
-    print(response)
+    print(item)
     return response
 
 
