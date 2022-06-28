@@ -613,7 +613,7 @@ def db_view_trip_history(uid):
 
     # Add filter expression and projection expression
     print("time now = ", time_now)
-    fe = Attr('user_id').eq(str(uid)) & Attr('arrived').lte(time_now)
+    fe = Attr('user_id').eq(str(uid)) & Attr('scheduled_arrival').lte(time_now)
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
     # Scan table with filters
@@ -623,6 +623,11 @@ def db_view_trip_history(uid):
     )
     items = response["Items"]
     for item in items:
+        if item.get("trip_status") == "NOT_STARTED":
+            item['missed'] = "True"
+        else:
+            item['missed'] = "False"
+
         if item.get("trip_status") == "NOT_STARTED" \
                 and item.get("scheduled_arrival") > (time_now_dt - timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
             item['editable'] = "True"
