@@ -17,14 +17,15 @@ gmaps = googlemaps.Client(key=api_key)
     Args:
         A (String): Source location or name 
         B (String): Destination location or name 
-        reported_points (list, optional): a list of reported road closure points. Defaults to [].
+        reported_points ([(float,float)], optional): a list of reported road closure points in (flaot,float) format. Defaults to [].
         n_search_points (int, optional): the number of waypoints you want google maps to search in. Defaults to 100.
+        preference (String): Either 'fastest' or 'safest'. The first will return a list of the fastest three routes and the second will return the one with least air pollution.
 
     Returns:
-        [Route]: a list of three Route object
+        [Route]: up to three Google Maps Route object in JSON format. 
     """    
     
-def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
+def calc_fastest_routes(A,B,reported_points=[],n_search_points=100, preference='fastest'):
     
     routes_dict = {}
 
@@ -38,7 +39,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
     # if no reported waypoints return first google alternative
     valid_routes = routes
     if len(reported_points) != 0:
-        valid_routes = get_valid_routes(routes,reported_points,n_search_points)
+        valid_routes = get_valid_routes(A,B,routes,reported_points,n_search_points)
     
     # keep to top 3
     if len(valid_routes) > 3:
@@ -46,14 +47,13 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=100):
     
     # fastest & cleanest
     fastest_routes = valid_routes #top 3
-    cleanest_route = get_cleanest(fastest_routes)
     
-    # add routes to response
-    routes_dict["fastest"] = list(map(lambda r: r.json_object, fastest_routes))
-    routes_dict["cleanest"] = cleanest_route.json_object
-
-    return routes_dict
-
+    if preference == 'safest':
+        cleanest_route = get_cleanest(fastest_routes)
+        return cleanest_route.json_object
+    else:
+        return list(map(lambda route: route.json_object,fastest_routes))
+    
     #TODO: We still need to add the mode of transportation
 
 
@@ -135,7 +135,7 @@ class Route:
         
 ## Functions
 
-def get_valid_routes(routes:List[Route],reported_points,n_search_points=100):
+def get_valid_routes(A,B,routes:List[Route],reported_points,n_search_points=100):
     
     #else look for ways to avoid 
     origin_x = routes[0].json_object['legs'][0]['start_location']['lng']
@@ -147,19 +147,18 @@ def get_valid_routes(routes:List[Route],reported_points,n_search_points=100):
     all_routes_list = [] + routes
     valid_routes_list = [] + routes
     shortest_route = routes[0]
-    print(shortest_route.duration)
 
     for i in range(0,n_search_points):
         waypoint = "%f,%f" % (wp_y[i],wp_x[i])
         try:
             #get the routes
-            directions = gmaps.directions(origin_x,origin_y,waypoints=[waypoint])
-            valid_routes_list += directions
+            directions = gmaps.directions(A,B,waypoints=[waypoint])
+            valid_routes_list += decode_json_routes(directions)
             all_routes_list += valid_routes_list
             
             #filter
             for p in reported_points:
-                valid_routes_list = filter(lambda r: is_point_on_rout(p,r) == False,valid_routes_list)
+                valid_routes_list = list(filter(lambda r: is_point_on_rout(p,r) == False,valid_routes_list))
             
             #set shortest
             valid_routes_list.sort(key=lambda r:r.duration)
