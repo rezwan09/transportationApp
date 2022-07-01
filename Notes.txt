@@ -11,3 +11,8 @@
 3. Trips History (Src details missing) [Check]
 4. Update User settings as needed [Not started]
 
+### Emojis to-do
+1. Go to https://unicode.org/emoji/charts/full-emoji-list.html
+2. Search and find the emojis unicode there
+3. Make a setup table on AWS with (tag,unicode) pair
+4. Design API for sending the full dictionary of emojis

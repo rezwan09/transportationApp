@@ -160,6 +160,13 @@ def add_report():
     return res
 
 
+@app.route('/emojis/get', methods=['POST'])
+def get_emojis():
+    # Get list of places by user_id
+    res = db_get_emojis(request.get_json())
+    return res
+
+
 def db_get_settings(item):
     table_name = "user_settings"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -338,7 +345,6 @@ def db_get_route_pref(item):
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-    print(item)
     fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('dst').eq(str(item.get("dst")))
     response = table.scan(
         FilterExpression=fe
@@ -370,7 +376,6 @@ def db_delete_trip(item):
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-    print("in delete trip")
     response = table.delete_item(
         Item={
             'id': item.get("id")
@@ -612,7 +617,6 @@ def db_view_trip_history(uid):
     time_now = time_now_dt.strftime("%m-%d-%Y %H:%M:%S")
 
     # Add filter expression and projection expression
-    print("time now = ", time_now)
     fe = Attr('user_id').eq(str(uid)) & Attr('scheduled_arrival').lte(time_now)
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
@@ -665,6 +669,7 @@ def db_get_places(item):
 
 
 def db_get_routes(item):
+    print("Showing routes")
     table_name = "trip_report"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1", )
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -673,10 +678,11 @@ def db_get_routes(item):
     # Get params
     src = item.get("src")
     dst = item.get("dst")
+    route_type = item.get("route_type")
     medium = item.get("medium")
 
     # Get the eligible reported points from report table by time and location
-    time_lower = datetime.now() - timedelta(hours=12)
+    """time_lower = datetime.now() - timedelta(hours=12)
     time_lower = time_lower.strftime("%m-%d-%Y %H:%M:%S")
     fe = Attr('issue').eq("ROAD_CLOSURE") & Attr('report_time').gte(time_lower)
     pe = "lat, lon"
@@ -689,8 +695,8 @@ def db_get_routes(item):
     for row in items:
         point = (str(row.get("lat")), str(row.get("lat")))
         point_list.append(point)
-    print("Checkpoints = ", point_list)
-    response = functions.calc_fastest_routes(src, dst, [], 100)
+    print("Checkpoints = ", point_list) """
+    response = functions.calc_fastest_routes(src, dst, [], 100, route_type)
     return response
 
 
@@ -717,7 +723,18 @@ def db_add_report(item):
             'report_time': datetime.now().strftime("%m-%d-%Y %H:%M:%S")
         }
     )
-    print(item)
+    return response
+
+
+def db_get_emojis(item):
+    table_name = "emoji"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get the item with the key
+    response = table.scan(
+    )
     return response
 
 
