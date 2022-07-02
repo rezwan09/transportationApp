@@ -160,10 +160,10 @@ def add_report():
     return res
 
 
-@app.route('/emojis/get', methods=['POST'])
+@app.route('/emojis/get', methods=['GET'])
 def get_emojis():
     # Get list of places by user_id
-    res = db_get_emojis(request.get_json())
+    res = db_get_emojis()
     return res
 
 
@@ -726,7 +726,7 @@ def db_add_report(item):
     return response
 
 
-def db_get_emojis(item):
+def db_get_emojis():
     table_name = "emoji"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
