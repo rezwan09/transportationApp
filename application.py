@@ -224,7 +224,8 @@ def db_add_place(item):
             'address': item.get("address"),
             'lat': item.get("lat"),
             'lon': item.get("lon"),
-            'tags': item.get("tags")
+            'tags': item.get("tags"),
+            'emoji': item.get("emoji")
         }
     )
     response['id'] = new_id
