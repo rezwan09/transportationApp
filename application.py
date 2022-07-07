@@ -123,7 +123,7 @@ def add_trip_feedback():
 @app.route('/trip/upcoming', methods=['POST'])
 def view_upcoming_trips():
     # Get all the trips within certain days, that are planned in the preference table
-    res = db_view_upcoming_trips(request.get_json())
+    res = db_get_upcoming_trips(request.get_json())
     return res
 
 
@@ -395,6 +395,8 @@ def db_view_next_trip(item):
     from_time = datetime.now()
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
 
+    # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
+    db_get_upcoming_trips(item)
     # Scan trip table
     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
          & Attr('trip_status').eq("NOT_STARTED")
@@ -494,7 +496,7 @@ def db_add_feedback(item):
     return response
 
 
-def db_view_upcoming_trips(item):
+def db_get_upcoming_trips(item):
     # Get the params
     user_id = request.get_json().get("user_id")
     src = request.get_json().get("src")
@@ -502,6 +504,10 @@ def db_view_upcoming_trips(item):
     src_lon = request.get_json().get("src_lon")
     src_addr = request.get_json().get("src_addr")
     interval = request.get_json().get("interval")
+    nextTrip, isBreak = False, False
+    if interval == 0:
+        interval = 100
+        nextTrip = True
     # Connection and resources
     table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -534,7 +540,7 @@ def db_view_upcoming_trips(item):
 
     dt = date_start = datetime.now().date()
     date_end = date_start + timedelta(days=interval)
-    while dt < date_end:
+    while dt <= date_end:
         day_name = calendar.day_name[dt.weekday()]
         for row in rows:
             dst = row['dst']
@@ -560,6 +566,7 @@ def db_view_upcoming_trips(item):
             data['medium'] = medium
             data['user_id'] = user_id
             data['trip_status'] = "NOT_STARTED"
+
             if times is not None:
                 for t in times:
                     tm = datetime.strptime(t, "%H:%M:%S").time()
@@ -576,10 +583,11 @@ def db_view_upcoming_trips(item):
                         dstAddr = res_dst.get('address')
 
                     preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
-                    res = functions.get_departure_time(srcAddr, dstAddr,
-                                                       preferred_arrival)
-                    data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
-                    data['estimated_duration'] = res[1]
+                    if preferred_arrival > datetime.now():
+                        res = functions.get_departure_time(srcAddr, dstAddr,
+                                                           preferred_arrival)
+                        data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                        data['estimated_duration'] = res[1]
                     json_data = json.dumps(data)
                     # Optimization needed: If trip not found in table create it
                     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(res_dst)
@@ -589,6 +597,11 @@ def db_view_upcoming_trips(item):
                     )
                     if len(result['Items']) == 0:
                         db_add_trip(data)
+                    if nextTrip:
+                        isBreak = True
+                        break
+        if isBreak:
+            break
         dt = dt + timedelta(days=1)
 
     # Show the trips generated in the last block
