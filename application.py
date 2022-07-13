@@ -567,10 +567,10 @@ def db_get_upcoming_trips(item):
             data['medium'] = medium
             data['user_id'] = user_id
             data['trip_status'] = "NOT_STARTED"
-            print(res_src, res_dst)
+            #print(res_src, res_dst)
             if times is not None:
                 for t in times:
-                    print("time =", t)
+                    #print("time =", t)
                     tm = datetime.strptime(t, "%H:%M:%S").time()
                     dtcf = datetime.combine(dt, tm)
                     dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
@@ -587,7 +587,7 @@ def db_get_upcoming_trips(item):
                             dstAddr = res_dst.get('address')
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
-                        print(preferred_arrival)
+                        #print(preferred_arrival)
                         if srcAddr and dstAddr and preferred_arrival > datetime.now():
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
