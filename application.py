@@ -29,7 +29,6 @@ def index():
 
 @app.route('/user/settings/get', methods=['POST'])
 def get_settings():
-    # Get list of places by user_id
     res = db_get_settings(request.get_json())
     return res
 
@@ -505,9 +504,11 @@ def db_get_upcoming_trips(item):
     src_addr = request.get_json().get("src_addr")
     interval = request.get_json().get("interval")
     nextTrip, isBreak = False, False
+    print("Interval = ", interval)
     if interval == 0:
-        interval = 100
+        interval = 8
         nextTrip = True
+    print("Interval = ", interval)
     # Connection and resources
     table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -566,40 +567,45 @@ def db_get_upcoming_trips(item):
             data['medium'] = medium
             data['user_id'] = user_id
             data['trip_status'] = "NOT_STARTED"
-
+            print(res_src, res_dst)
             if times is not None:
                 for t in times:
+                    print("time =", t)
                     tm = datetime.strptime(t, "%H:%M:%S").time()
-                    dtc = datetime.combine(dt, tm)
-                    dtc = dtc.strftime("%m-%d-%Y %H:%M:%S")
-                    data['scheduled_arrival'] = dtc
-                    # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
-                    srcAddr, dstAddr = None, None
-                    if src is not None and res_src.get('address') is not None:
-                        srcAddr = res_src.get('address')
-                    else:
-                        srcAddr = src_addr
-                    if dst is not None and res_dst.get('address') is not None:
-                        dstAddr = res_dst.get('address')
+                    dtcf = datetime.combine(dt, tm)
+                    dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
+                    if dtcf > datetime.now():
 
-                    preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
-                    if preferred_arrival > datetime.now():
-                        res = functions.get_departure_time(srcAddr, dstAddr,
-                                                           preferred_arrival)
-                        data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
-                        data['estimated_duration'] = res[1]
-                    json_data = json.dumps(data)
-                    # Optimization needed: If trip not found in table create it
-                    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(res_dst)
-                    trip_table = dynamodb.Table("trip")
-                    result = trip_table.scan(
-                        FilterExpression=fe
-                    )
-                    if len(result['Items']) == 0:
-                        db_add_trip(data)
-                    if nextTrip:
-                        isBreak = True
-                        break
+                        data['scheduled_arrival'] = dtc
+                        # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
+                        srcAddr, dstAddr = None, None
+                        if res_src is not None and res_src.get('address') is not None:
+                            srcAddr = res_src.get('address')
+                        else:
+                            srcAddr = src_addr
+                        if res_dst is not None and res_dst.get('address') is not None:
+                            dstAddr = res_dst.get('address')
+
+                        preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
+                        print(preferred_arrival)
+                        if srcAddr and dstAddr and preferred_arrival > datetime.now():
+                            res = functions.get_departure_time(srcAddr, dstAddr,
+                                                               preferred_arrival)
+                            data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                            data['estimated_duration'] = res[1]
+
+                        json_data = json.dumps(data)
+                        # Optimization needed: If trip not found in table create it
+                        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(res_dst)
+                        trip_table = dynamodb.Table("trip")
+                        result = trip_table.scan(
+                            FilterExpression=fe
+                        )
+                        if len(result['Items']) == 0:
+                            db_add_trip(data)
+                        if nextTrip:
+                            isBreak = True
+                            break
         if isBreak:
             break
         dt = dt + timedelta(days=1)
@@ -664,11 +670,11 @@ def db_get_places(item):
 
     # Define filters and projections
     fe = Attr('user_id').eq(str(item.get("user_id")))
-    pe = "id, user_id, place_name, address, lat, lon, tags"
+    #pe = "id, user_id, place_name, address, lat, lon, tags"
     # Scan table with filters
     response = table.scan(
-        FilterExpression=fe,
-        ProjectionExpression=pe
+        FilterExpression=fe
+        #,ProjectionExpression=pe
     )
 
     # Append preferences for each destination place
@@ -754,5 +760,5 @@ def db_get_emojis():
 
 if __name__ == "__main__":
     app.run(host='localhost', port=5001, debug=True)
-    # app.run(host='0.0.0.0', port=80)
+    # app.run(host='0.0.0.0', port=8080)
     print('Server running with flask')
