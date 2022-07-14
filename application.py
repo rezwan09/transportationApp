@@ -363,6 +363,14 @@ def db_delete_place(item):
             'id': str(item.get("id"))
         }
     )
+
+    # Delete related route-preferences too
+    pref_table = dynamodb.Table("user_route_preference")
+    pref_resp = pref_table.delete_item(
+        Key={
+            'dst': str(item.get("id"))
+        }
+    )
     return response
 
 
