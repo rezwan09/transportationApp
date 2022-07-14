@@ -571,7 +571,11 @@ def db_get_upcoming_trips(item):
             if times is not None:
                 for t in times:
                     #print("time =", t)
-                    tm = datetime.strptime(t, "%H:%M:%S").time()
+                    tm = None
+                    try:
+                        tm = datetime.strptime(t, "%H:%M:%S").time()
+                    except ValueError:
+                        tm = datetime.strptime(t, "%H:%M").time()
                     dtcf = datetime.combine(dt, tm)
                     dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
                     if dtcf > datetime.now():
@@ -760,5 +764,5 @@ def db_get_emojis():
 
 if __name__ == "__main__":
     app.run(host='localhost', port=5001, debug=True)
-    # app.run(host='0.0.0.0', port=8080)
+    #app.run(host='0.0.0.0', port=8080)
     print('Server running with flask')
