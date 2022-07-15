@@ -159,7 +159,7 @@ def add_report():
     return res
 
 
-@app.route('/emojis/get', methods=['GET'])
+@app.route('/emojis/get', methods=['POST'])
 def get_emojis():
     # Get list of places by user_id
     res = db_get_emojis()
@@ -728,6 +728,7 @@ def db_get_routes(item):
         point = (str(row.get("lat")), str(row.get("lat")))
         point_list.append(point)
     print("Checkpoints = ", point_list) """
+    print(src, dst, route_type)
     response = functions.calc_fastest_routes(src, dst, [], 100, route_type)
     return response
 
