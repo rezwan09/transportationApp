@@ -196,7 +196,10 @@ def db_add_settings(item):
             'alert_time': item.get("alert_time"),
             'medium': item.get("medium"),
             'preferred_route': item.get("preferred_route"),
-
+            'alert_time_bool': item.get("alert_time_bool"),
+            'trip_duration': item.get("trip_duration"),
+            'air_pollution': item.get("air_pollution"),
+            'road_closure': item.get("road_closure")
 
         }
     )
