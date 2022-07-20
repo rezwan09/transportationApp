@@ -282,6 +282,7 @@ def db_get_trip(item):
     table = dynamodb.Table(table_name)
 
     # Get the item with the key
+    print(item.get("id"))
     response = table.get_item(
         Key={
             'id': str(item.get("id"))
@@ -408,8 +409,7 @@ def db_view_next_trip(item):
     # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
     db_get_upcoming_trips(item)
     # Scan trip table
-    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
-         & Attr('trip_status').eq("NOT_STARTED")
+    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -443,10 +443,9 @@ def db_start_trip(item):
     item = json.loads(json.dumps(item), parse_float=Decimal)
 
     # If trip id not present, return with error
-    """ resp = table.get_item(
-        Key={
-            'id': str(item.get("id"))
-        }
+    """fe = Attr('user_id').eq(str(item.get("user_id"))) & (Attr('trip_status').eq("STARTED"))
+    resp = table.scan(
+        FilterExpression=fe
     ) """
 
     response = table.update_item(
@@ -519,7 +518,7 @@ def db_get_upcoming_trips(item):
     if interval == 0:
         interval = 8
         nextTrip = True
-    print("Interval = ", interval)
+    print("Interval_used = ", interval)
     # Connection and resources
     table_name = "user_route_preference"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -602,7 +601,7 @@ def db_get_upcoming_trips(item):
                             dstAddr = res_dst.get('address')
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
-                        #print(preferred_arrival)
+                        #print("preferred_arrival = ", preferred_arrival)
                         if srcAddr and dstAddr and preferred_arrival > datetime.now():
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
@@ -652,7 +651,7 @@ def db_view_trip_history(uid):
     time_now = time_now_dt.strftime("%m-%d-%Y %H:%M:%S")
 
     # Add filter expression and projection expression
-    fe = Attr('user_id').eq(str(uid)) & Attr('scheduled_arrival').lte(time_now)
+    fe = Attr('user_id').eq(str(uid)) & (Attr('scheduled_arrival').lte(time_now) | (Attr('trip_status').eq("COMPLETED")))
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
     # Scan table with filters
