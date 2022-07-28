@@ -312,6 +312,7 @@ def db_add_trip(item):
             'src_lon': item.get("src_lon"),
             'src_addr': item.get("src_addr"),
             'dst': item.get("dst"),
+            'dst_id': item.get("dst_id"),
             'medium': item.get("medium"),
             'started': item.get("started"),
             'arrived': item.get("arrived"),
@@ -409,7 +410,7 @@ def db_soft_delete_trip(place_id):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
-    fe = Attr('dst.id').eq(str(place_id))
+    fe = Attr('dst_id').eq(str(place_id))
     pe = "id"
     response = table.scan(
         FilterExpression=fe,
@@ -419,14 +420,15 @@ def db_soft_delete_trip(place_id):
 
     print("Rows to be deleted: ", rows)
     # Run a series of updates
-    for trip_id in rows:
+    for row in rows:
+        trip_id = row.get("id")
         update_response = table.update_item(
             Key={
                 'id': trip_id
             },
             UpdateExpression='SET is_deleted = :isDeleted',
             ExpressionAttributeValues={
-                ':isDeleted': "True"
+                ':isDeleted': True
             }
         )
     return "Trips deleted"
@@ -610,6 +612,7 @@ def db_get_upcoming_trips(item):
             data['src_lat'] = src_lat
             data['src_lon'] = src_lon
             data['src_addr'] = src_addr
+            data['dst_id'] = dst
             data['dst'] = res_dst
             data['medium'] = medium
             data['user_id'] = user_id
@@ -665,7 +668,7 @@ def db_get_upcoming_trips(item):
 
     # Show the trips generated in the last block
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
-         & Attr('scheduled_arrival').lte(to_time)
+         & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').eq(False)
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
