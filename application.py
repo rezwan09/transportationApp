@@ -319,6 +319,7 @@ def db_add_trip(item):
             'suggested_start_time': item.get("suggested_start_time"),
             'estimated_duration': item.get("estimated_duration"),
             'trip_status': item.get("trip_status"),
+            'is_deleted': item.get("is_deleted"),
             'route': item.get("route"),
             'suggested_routes': item.get("suggested_routes"),
             'trip_feedback': item.get("trip_feedback")
@@ -357,6 +358,7 @@ def db_get_route_pref(item):
 
 
 def db_delete_place(item):
+    place_id = str(item.get("id"))
     table_name = "place"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -377,12 +379,9 @@ def db_delete_place(item):
     )
 
     # Soft delete related trips too
-    trip_table = dynamodb.Table("trip")
-    trip_resp = trip_table.delete_item(
-        Key={
-            'dst': str(item.get("id"))
-        }
-    )
+    del_resp = db_soft_delete_trip(place_id)
+    print(del_resp)
+
     return response
 
 
@@ -402,6 +401,35 @@ def db_delete_trip(item):
         }
     )
     return response
+
+
+def db_soft_delete_trip(place_id):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    fe = Attr('dst.id').eq(str(place_id))
+    pe = "id"
+    response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+    rows = response['Items']
+
+    print("Rows to be deleted: ", rows)
+    # Run a series of updates
+    for trip_id in rows:
+        update_response = table.update_item(
+            Key={
+                'id': trip_id
+            },
+            UpdateExpression='SET is_deleted = :isDeleted',
+            ExpressionAttributeValues={
+                ':isDeleted': "True"
+            }
+        )
+    return "Trips deleted"
 
 
 def db_view_next_trip(item):
@@ -586,6 +614,7 @@ def db_get_upcoming_trips(item):
             data['medium'] = medium
             data['user_id'] = user_id
             data['trip_status'] = "NOT_STARTED"
+            data['is_deleted'] = False
             # print(res_src, res_dst)
             if times is not None:
                 for t in times:
@@ -742,7 +771,7 @@ def db_get_routes(item):
         point_list.append(point)
     print("Checkpoints = ", point_list) """
     print(src, dst, route_type)
-    response = functions.calc_fastest_routes(src, dst, [], 100, route_type)
+    response = functions.calc_fastest_routes(src, dst, [], 0, route_type)
     return response
 
 
@@ -786,5 +815,5 @@ def db_get_emojis():
 
 if __name__ == "__main__":
     app.run(host='localhost', port=5001, debug=True)
-    # app.run(host='0.0.0.0', port=8080)
+    #app.run(host='0.0.0.0', port=8080)
     print('Server running with flask')
