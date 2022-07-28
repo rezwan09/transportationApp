@@ -447,7 +447,7 @@ def db_view_next_trip(item):
     # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
     db_get_upcoming_trips(item)
     # Scan trip table
-    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
+    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) & Attr('is_deleted').eq(False) \
          & (Attr('trip_status').eq("NOT_STARTED") | Attr('trip_status').eq("STARTED"))
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
