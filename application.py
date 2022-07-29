@@ -213,6 +213,18 @@ def db_add_place(item):
     table = dynamodb.Table(table_name)
 
     item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    # Duplicate name check for same user. Scan and filter with user_id and place_name
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('place_name').eq(str(item.get("name")))
+    dup_response = table.scan(
+        FilterExpression=fe
+    )
+    c = dup_response['Count']
+    if c > 0:
+        dup_response['id'] = -1  # -1 Means item is duplicate
+        del dup_response["Items"]
+        del dup_response["Count"]
+        return dup_response
     # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
     new_id = item.get('id')
     if item.get('id') == "" or item.get('id') is None:
@@ -659,11 +671,11 @@ def db_get_upcoming_trips(item):
                         )
                         if len(result['Items']) == 0:
                             db_add_trip(data)
-                        if nextTrip:
+                        """if nextTrip:
                             isBreak = True
                             break
         if isBreak:
-            break
+            break """
         dt = dt + timedelta(days=1)
 
     # Show the trips generated in the last block
