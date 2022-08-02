@@ -199,7 +199,9 @@ def db_add_settings(item):
             'alert_time_bool': item.get("alert_time_bool"),
             'trip_duration': item.get("trip_duration"),
             'air_pollution': item.get("air_pollution"),
-            'road_closure': item.get("road_closure")
+            'road_closure': item.get("road_closure"),
+            'setup': item.get("setup"),
+            'isLastTripRated': item.get("isLastTripRated")
 
         }
     )
@@ -214,20 +216,25 @@ def db_add_place(item):
 
     item = json.loads(json.dumps(item), parse_float=Decimal)
 
-    # Duplicate name check for same user. Scan and filter with user_id and place_name
-    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('place_name').eq(str(item.get("name")))
+    # Duplicate location check for same user. Scan and filter with user_id and place_name
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('lat').eq(item.get("lat")) \
+         & Attr('lon').eq(item.get("lon"))
     dup_response = table.scan(
         FilterExpression=fe
     )
+    print(dup_response)
     c = dup_response['Count']
-    if c > 0:
-        dup_response['id'] = -1  # -1 Means item is duplicate
-        del dup_response["Items"]
-        del dup_response["Count"]
-        return dup_response
-    # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
-    new_id = item.get('id')
-    if item.get('id') == "" or item.get('id') is None:
+    new_id = None
+    if c == 1:
+        # Duplicate Entry
+        new_id = str(dup_response['Items'][0]['id'])
+        print("Duplicate id = ", new_id)
+    else:
+        new_id = item.get('id')
+        print("Updating id = ", new_id)
+
+    # If new, Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    if new_id == "" or new_id is None:
         new_id = round(time.time() * 1000)
 
     response = table.put_item(
@@ -528,10 +535,12 @@ def db_end_trip(item):
         Key={
             'id': str(item.get("id"))
         },
-        UpdateExpression='SET trip_status = :ts, arrived = :arrived, trip_feedback = :trip_feedback',
+        UpdateExpression='SET trip_status = :ts, arrived = :arrived, dst_lat = :dst_lat, dst_lon = :dst_lon, trip_feedback = :trip_feedback',
         ExpressionAttributeValues={
             ':arrived': item.get("arrived"),
             ':trip_feedback': item.get("trip_feedback"),
+            ':dst_lat': item.get("dst_lat"),
+            ':dst_lon': item.get("dst_lon"),
             ':ts': "COMPLETED"
         }
     )
@@ -616,10 +625,10 @@ def db_get_upcoming_trips(item):
             data = {}
             res_src = src
             if src:
-                res = db_get_place({"id": src})
-                res_src = json.loads(res).get("Item")
-            res = db_get_place({"id": dst})
-            res_dst = json.loads(res).get("Item")
+                res_src = db_get_place({"id": src})
+                res_src = json.loads(res_src).get("Item")
+            res_dst = db_get_place({"id": dst})
+            res_dst = json.loads(res_dst).get("Item")
             data['src'] = res_src
             data['src_lat'] = src_lat
             data['src_lon'] = src_lon
@@ -663,8 +672,8 @@ def db_get_upcoming_trips(item):
 
                         json_data = json.dumps(data)
                         # Optimization needed: If trip not found in table create it
-                        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst').eq(
-                            res_dst)
+                        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst_id').eq(
+                            dst) & Attr('is_deleted').eq(False)
                         trip_table = dynamodb.Table("trip")
                         result = trip_table.scan(
                             FilterExpression=fe
