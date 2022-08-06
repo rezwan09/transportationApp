@@ -16,3 +16,6 @@
 2. Search and find the emojis unicode there
 3. Make a setup table on AWS with (tag,unicode) pair
 4. Design API for sending the full dictionary of emojis
+
+### Old keys
+breezometer: c6b0bd78b028449a8518d901751b680b
