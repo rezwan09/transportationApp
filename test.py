@@ -3,7 +3,8 @@ from functions import *
 
 a = "Cu Boulder"
 b = "Safeway, 3325 28th St"
-points = [(40.02534240131319, -105.25837419409055)]
+# points = [(40.02534240131319, -105.25837419409055)]
+points = []
 
 # fastest
 

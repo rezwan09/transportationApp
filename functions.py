@@ -25,7 +25,7 @@ gmaps = googlemaps.Client(key=api_key)
         [Route]: up to three Google Maps Route object in JSON format. 
     """    
     
-def calc_fastest_routes(A,B,reported_points=[],n_search_points=100, preference='fastest'):
+def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest'):
     
     routes_dict = {}
 
@@ -175,7 +175,7 @@ def get_valid_routes(A,B,routes:List[Route],reported_points,n_search_points=100)
 
 def breez_base_key():
     base = "https://api.breezometer.com/air-quality/v2/"
-    api_key = "1003a28cf3bd496ab89428fbe1ed667f"
+    api_key = brez_api
     return (base,api_key)
 
 def fetch_point_aq(lat,lon):
