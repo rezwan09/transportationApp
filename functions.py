@@ -6,6 +6,7 @@ from math import sin, cos, sqrt, atan2, radians
 import googlemaps
 import datetime
 import matplotlib.pyplot as plt
+import json
 
 #client initiate gmaps client
 api_key = open('google_maps_api.txt').readlines()[0]
@@ -52,8 +53,8 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
         cleanest_route = get_cleanest(fastest_routes)
         return cleanest_route.json_object
     else:
-        return list(map(lambda route: route.json_object,fastest_routes))
-    
+        map_list = list(map(lambda route: route.json_object,fastest_routes))
+        return json.dumps(map_list, default=lambda x: x.__dict__)
     #TODO: We still need to add the mode of transportation
 
 
