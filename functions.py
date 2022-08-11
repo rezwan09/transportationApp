@@ -1,3 +1,4 @@
+from operator import le
 import requests
 import numpy
 from typing import List
@@ -219,6 +220,9 @@ def get_points(route):
 def get_points_from(route:Route):
     return list(map(lambda x:x['start_location'],route.steps)) + list(map(lambda x:x['end_location'],route.steps))
 
+def get_n_points_from(route:Route):
+    all_points = list(map(lambda x:x['start_location'],route.steps))
+
 def get_durations(routes):
     return list(map(lambda x: x['legs'][0]['duration']['text'],routes))
 
@@ -238,10 +242,19 @@ def get_pm25_list(points):
 
 def pms_durations_from(routes:List[Route]):
     
-    #pm25
-    pm25_lists = []
+    #get points
+    points_lists = []
     for route in routes:
         points = get_points_from(route)
+        points_lists.append(points)
+    
+    #reduce points
+    reduced = reduce_points(points_lists)
+    
+    #pm25
+    pm25_lists = []
+    for points in reduced:
+        print(len(points))
         pm25_list = get_pm25_list(points=points)
         pm25_lists.append(pm25_list)
 
@@ -369,3 +382,80 @@ def depart_at(source,destination,preferred_arrival_time):
     dep_time, go_in = get_departure_time(source,destination,preferred_arrival_time)
     days, hours, minutes = days_hours_minutes(go_in)
     print("You need to depart at %s that is %s days %s hours %s minutes from now" % (dep_time.strftime("%H:%M on (%B, %d)"), days, hours, minutes))
+    
+
+#common points
+def find_common_points(points_lists):
+    
+    '''
+    finds common points from a list of lists
+    returns: a list of the common points
+    '''
+    
+    common_points = []
+    for p in points_lists[0]:
+        common = True
+        for i in range(1,len(points_lists)):
+            if p not in points_lists[i]:
+                common = False
+        if common:
+            common_points.append(p)
+    return common_points
+
+
+#remove from each list what is in common
+def remove_common(points_lists, common):
+    
+    '''
+    removes common points from a list of list
+    returns: a list of lists with common points removed
+    '''
+    
+    for pl in points_lists:
+        for p in pl:
+            if p in common:
+                pl.remove(p)
+    return points_lists
+            
+#reduce to 5 points max
+
+def reduce_to(new_list,n=5):
+    
+    '''
+    common points from a list of list
+    returns: a list of lists with common points removed
+    '''
+    
+    length = len(new_list)
+    
+    if length <= n:
+        return new_list
+    
+    small_list = new_list.copy()
+    #more than 5
+    remove_n = length - 5
+    chunk = int(length/3)
+    i = 0 
+    while i < remove_n:
+        print(chunk*i)
+        del small_list[chunk]
+        i += 1
+
+    return small_list
+
+
+def reduce_points(points_list, n=5):
+    
+    '''
+    reduce the number of points from a list of lists to 5 points
+    returns a list of list of the reduced number of points
+    '''
+    
+    common_points = find_common_points(points_list)
+    removed_common = remove_common(points_list, common_points)
+    reduced_lists = []
+    for lst in removed_common:
+        ptlst = reduce_to(lst,n)
+        reduced_lists.append(ptlst)
+    return reduced_lists
+
