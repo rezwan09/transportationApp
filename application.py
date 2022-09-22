@@ -40,6 +40,13 @@ def add_settings():
     return res
 
 
+@app.route('/user/token/add', methods=['POST'])
+def add_user_token():
+    # Get list of places by user_id
+    res = db_add_user_token(request.get_json())
+    return res
+
+
 @app.route('/place/all', methods=['POST'])
 def get_places():
     # Get list of places by user_id
@@ -205,6 +212,25 @@ def db_add_settings(item):
 
         }
     )
+    return response
+
+
+def db_add_user_token(item):
+    # Adding device token for each user
+    table_name = "user_tokens"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Generate an id
+    new_id = round(time.time() * 1000)
+    response = table.put_item(
+        Item={
+            'id': str(new_id),
+            'user_id': str(item.get("user_id")),
+            'token': item.get("token"),
+        }
+    )
+    response['id'] = new_id
     return response
 
 
