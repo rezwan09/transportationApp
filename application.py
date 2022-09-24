@@ -690,6 +690,7 @@ def db_get_upcoming_trips(item):
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
                         # skip while API disabled
                         if srcAddr and dstAddr and preferred_arrival > datetime.now():
+                            print("Day = ", day_name, ". pref arrv: ", preferred_arrival)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
