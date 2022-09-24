@@ -664,6 +664,7 @@ def db_get_upcoming_trips(item):
             data['trip_status'] = "NOT_STARTED"
             data['is_deleted'] = False
             # print(res_src, res_dst)
+            print("1. Day = ", day_name, "times = ", timess)
             if times is not None:
                 for t in times:
                     tm = None
@@ -673,8 +674,8 @@ def db_get_upcoming_trips(item):
                         tm = datetime.strptime(t, "%H:%M").time()
                     dtcf = datetime.combine(dt, tm)
                     dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
+                    print("2. Day = ", day_name, "Dtcf = ", dtcf)
                     if dtcf > datetime.now():
-
                         data['scheduled_arrival'] = dtc
                         # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
                         srcAddr, dstAddr = None, None
@@ -687,7 +688,6 @@ def db_get_upcoming_trips(item):
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
                         # skip while API disabled
-                        print("Day = ", day_name, ". pref arrv: ", preferred_arrival)
                         if srcAddr and dstAddr and preferred_arrival > datetime.now():
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
