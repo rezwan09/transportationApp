@@ -634,10 +634,8 @@ def db_get_upcoming_trips(item):
 
     dt = date_start = datetime.now().date()
     date_end = date_start + timedelta(days=interval)
-    print("Date start- ", date_start, "Date end- ", date_end)
     while dt <= date_end:
         day_name = calendar.day_name[dt.weekday()]
-        print("Today is: ", day_name)
         for row in rows:
             dst = row['dst']
             medium = row['medium']
@@ -689,8 +687,8 @@ def db_get_upcoming_trips(item):
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
                         # skip while API disabled
+                        print("Day = ", day_name, ". pref arrv: ", preferred_arrival)
                         if srcAddr and dstAddr and preferred_arrival > datetime.now():
-                            print("Day = ", day_name, ". pref arrv: ", preferred_arrival)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
