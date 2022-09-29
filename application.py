@@ -5,6 +5,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 import calendar
 import time
+import pytz
 import googlemaps
 from boto3.dynamodb.conditions import Key, Attr
 
@@ -18,8 +19,8 @@ application = app = Flask(__name__)
 # geocode_result = gmaps.geocode('1600 Amphitheatre Parkway, Mountain View, CA')
 # gmaps.reverse_geocode((40.714224, -73.961452))
 
-now = datetime.now()
-
+now = datetime.now(pytz.timezone('US/Mountain'))
+print("Mountain time now : ", now)
 
 @app.route('/')
 def index():
@@ -488,7 +489,7 @@ def db_view_next_trip(item):
 
     # Get the params
     user_id = request.get_json().get("user_id")
-    from_time = datetime.now()
+    from_time = now
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
 
     # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
@@ -615,7 +616,7 @@ def db_get_upcoming_trips(item):
     table = dynamodb.Table(table_name)
 
     # Define time now and after the interval
-    from_time = datetime.now()
+    from_time = now
     to_time = from_time + timedelta(days=interval)
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
     to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
@@ -632,7 +633,7 @@ def db_get_upcoming_trips(item):
     )
     rows = pref_response['Items']
 
-    dt = date_start = datetime.now().date()
+    dt = date_start = now.date()
     date_end = date_start + timedelta(days=interval)
     while dt <= date_end:
         day_name = calendar.day_name[dt.weekday()]
@@ -664,7 +665,6 @@ def db_get_upcoming_trips(item):
             data['trip_status'] = "NOT_STARTED"
             data['is_deleted'] = False
             # print(res_src, res_dst)
-            print("1. Day = ", day_name, "times = ", times)
             if times is not None:
                 for t in times:
                     tm = None
@@ -674,8 +674,7 @@ def db_get_upcoming_trips(item):
                         tm = datetime.strptime(t, "%H:%M").time()
                     dtcf = datetime.combine(dt, tm)
                     dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
-                    print("2. Day = ", day_name, "Dtcf = ", dtcf, " Now = ", datetime.now())
-                    if dtcf > datetime.now():
+                    if dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
                         data['scheduled_arrival'] = dtc
                         # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
                         srcAddr, dstAddr = None, None
@@ -688,8 +687,7 @@ def db_get_upcoming_trips(item):
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
                         # skip while API disabled
-                        if srcAddr and dstAddr and preferred_arrival > datetime.now():
-                            print("3. Day = ", day_name, "prev arrvl = ", preferred_arrival)
+                        if srcAddr and dstAddr and dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
@@ -734,7 +732,7 @@ def db_view_trip_history(uid):
     table = dynamodb.Table(table_name)
 
     # Define time now and after the interval
-    time_now_dt = datetime.now()
+    time_now_dt = now
     time_now = time_now_dt.strftime("%m-%d-%Y %H:%M:%S")
 
     # Add filter expression and projection expression
@@ -804,7 +802,7 @@ def db_get_routes(item):
     medium = item.get("medium")
 
     # Get the eligible reported points from report table by time and location
-    """time_lower = datetime.now() - timedelta(hours=12)
+    """time_lower = now - timedelta(hours=12)
     time_lower = time_lower.strftime("%m-%d-%Y %H:%M:%S")
     fe = Attr('issue').eq("ROAD_CLOSURE") & Attr('report_time').gte(time_lower)
     pe = "lat, lon"
@@ -843,7 +841,7 @@ def db_add_report(item):
             'description': item.get("description"),
             'lat': item.get("lat"),
             'lon': item.get("lon"),
-            'report_time': datetime.now().strftime("%m-%d-%Y %H:%M:%S")
+            'report_time': now.strftime("%m-%d-%Y %H:%M:%S")
         }
     )
     return response
