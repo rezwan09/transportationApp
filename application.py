@@ -687,12 +687,17 @@ def db_get_upcoming_trips(item):
 
                         preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
                         # skip while API disabled
+                        addTrip = False
                         if srcAddr and dstAddr and dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
                             print("Preffered arrival = ", preferred_arrival)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
                             data['estimated_duration'] = res[1]
+                            if data['suggested_start_time'] > now.strftime("%m-%d-%Y %H:%M:%S"):
+                                addTrip = True
+                            else:
+                                addTrip = False
 
                         # Optimization needed: If trip not found in table create it
                         fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst_id').eq(
@@ -708,7 +713,8 @@ def db_get_upcoming_trips(item):
 
                         # Dump to json and add/update
                         json_data = json.dumps(data)
-                        db_add_trip(data)
+                        if addTrip==True:
+                            db_add_trip(data)
 
         dt = dt + timedelta(days=1)
     # Show the trips generated in the last block

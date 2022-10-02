@@ -6,8 +6,10 @@ import polyline
 from math import sin, cos, sqrt, atan2, radians
 import googlemaps
 import datetime
+from datetime import timedelta
 import matplotlib.pyplot as plt
 import json
+import pytz
 
 #client initiate gmaps client
 api_key = open('google_maps_api.txt').readlines()[0]
@@ -71,16 +73,26 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     """
     
 def get_departure_time(source,destination,preferred_arrival_time):
-    
+
+    # Make Timezone specific (MT time)
+    print("Mountain time, Server time = ", datetime.datetime.now(pytz.timezone('US/Mountain')), datetime.datetime.now())
+    preferred_arrival_time = preferred_arrival_time + timedelta(hours=2)
+
     #normal duration from a to b
     normal_duration = Route(gmaps.directions(source,destination, arrival_time=preferred_arrival_time)[0]).duration
     normal_departure_time = preferred_arrival_time - datetime.timedelta(seconds=normal_duration)
-    
+
     #real duration
-    real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic')[0]).duration
-    real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
+    if normal_departure_time >= datetime.datetime.now():
+        real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic')[0]).duration
+        real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
     
-    return (real_departure_time, real_duration)
+        return (real_departure_time, real_duration)
+    else:
+        alt_duration = Route(gmaps.directions(source, destination, departure_time=datetime.datetime.now(), traffic_model='pessimistic')[0]).duration
+        alt_departure_time = preferred_arrival_time - datetime.timedelta(seconds=alt_duration)
+
+        return (alt_departure_time, alt_duration)
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
 
