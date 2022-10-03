@@ -88,7 +88,7 @@ def get_departure_time(source,destination,preferred_arrival_time):
         real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic')[0]).duration
         real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
 
-        real_departure_time = real_departure_time - timedelta(hours=2)s
+        real_departure_time = real_departure_time - timedelta(hours=2)
         return (real_departure_time, real_duration)
     else:
         alt_duration = Route(gmaps.directions(source, destination, departure_time=datetime.datetime.now(), traffic_model='pessimistic')[0]).duration
