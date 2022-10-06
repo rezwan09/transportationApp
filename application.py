@@ -824,7 +824,7 @@ def db_get_routes(item):
         point_list.append(point)
     print("Checkpoints = ", point_list) """
     print(src, dst, route_type)
-    response = functions.calc_fastest_routes(src, dst, [], 0, route_type)
+    response = functions.calc_fastest_routes(src, dst, [], 0, route_type, medium=medium)
     return response
 
 

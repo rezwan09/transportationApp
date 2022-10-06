@@ -1,4 +1,5 @@
 from operator import le
+from unittest import mock
 import requests
 import numpy
 from typing import List
@@ -29,13 +30,13 @@ gmaps = googlemaps.Client(key=api_key)
         [Route]: up to three Google Maps Route object in JSON format. 
     """    
     
-def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest'):
+def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest', medium="driving"):
     
     routes_dict = {}
 
     #origin & first route
     try:
-        routes = fetch_routes(A,B)
+        routes = fetch_routes(A,B, medium=medium)
     except googlemaps.exceptions.ApiError as e:  # This is the correct syntax
         print("No route found from %s to %s" % (A,B))
         return None
@@ -58,7 +59,6 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     else:
         map_list = list(map(lambda route: route.json_object,fastest_routes))
         return json.dumps(map_list, default=lambda x: x.__dict__)
-    #TODO: We still need to add the mode of transportation
 
 
 """Return the departure time to go from a source to destination by calculating it in traffic
@@ -216,9 +216,9 @@ def fetch_direction(A,B):
 def decode_json_routes(routes_json):
     return list(map(lambda r:Route(r),routes_json))
 
-def fetch_routes(a,b, departure_time=None,traffic_model='pessimistic'):
+def fetch_routes(a,b, departure_time=None,traffic_model='pessimistic', medium="DRIVING"):
     if departure_time == None:
-        dirs = gmaps.directions(a,b, alternatives=True)
+        dirs = gmaps.directions(a,b, alternatives=True, mode=medium)
     else:
         dirs = gmaps.directions(a,b,departure_time=departure_time, traffic_model= traffic_model,alternatives=True)
     routes:List[Route] = decode_json_routes(dirs)
@@ -270,7 +270,6 @@ def pms_durations_from(routes:List[Route]):
     #pm25
     pm25_lists = []
     for points in reduced:
-        print(len(points))
         pm25_list = get_pm25_list(points=points)
         pm25_lists.append(pm25_list)
 
@@ -453,8 +452,8 @@ def reduce_to(new_list,n=5):
     chunk = int(length/3)
     i = 0 
     while i < remove_n:
-        print(chunk*i)
-        del small_list[chunk]
+        if chunk > len(small_list):
+            del small_list[chunk]
         i += 1
 
     return small_list
