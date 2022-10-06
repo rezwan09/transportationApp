@@ -564,12 +564,13 @@ def db_end_trip(item):
         Key={
             'id': str(item.get("id"))
         },
-        UpdateExpression='SET trip_status = :ts, arrived = :arrived, dst_lat = :dst_lat, dst_lon = :dst_lon, trip_feedback = :trip_feedback',
+        UpdateExpression='SET trip_status = :ts, arrived = :arrived, dst_lat = :dst_lat, dst_lon = :dst_lon, route = :route, trip_feedback = :trip_feedback',
         ExpressionAttributeValues={
             ':arrived': item.get("arrived"),
             ':trip_feedback': item.get("trip_feedback"),
             ':dst_lat': item.get("dst_lat"),
             ':dst_lon': item.get("dst_lon"),
+            ':route': item.get("route"),
             ':ts': "COMPLETED"
         }
     )
