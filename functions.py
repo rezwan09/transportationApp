@@ -53,11 +53,16 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     # fastest & cleanest
     fastest_routes = valid_routes #top 3
     
+    #calc the air quality for the fastest route
+    avg_aq, _ = pms_durations_from(fastest_routes[:1])
+    avg_aq = avg_aq[0]
+    fastest_routes[0].json_object["avg_aq"] = avg_aq
+    
     if preference == 'safest':
         cleanest_route = get_cleanest(fastest_routes)
         return cleanest_route.json_object
-    else:
-        map_list = list(map(lambda route: route.json_object,fastest_routes))
+    else: # pref is fastest
+        map_list = list(map(lambda route: route.json_object, fastest_routes[:1]))
         return json.dumps(map_list, default=lambda x: x.__dict__)
 
 
@@ -126,7 +131,6 @@ class Route:
         
         #html steps
         self.html_steps = list(map(lambda step: step['html_instructions'] + "from: %s -> to:%s" % (step['start_location'],step['end_location']),self.steps))
-
         
         #points
         self.points = list(map(lambda step: (step['start_location']),self.steps))
@@ -148,6 +152,9 @@ class Route:
             p2 = self.polypoints[i]
             condenced_points += condense_points(p1,p2)
         self.condenced_points = condenced_points
+        
+        # average pm2.4
+        self.avg_aq = 0
         
         
 ## Functions
@@ -284,15 +291,25 @@ def pms_durations_from(routes:List[Route]):
     
     return (averages,durations)
 
-def get_cleanest(routes):    
-    avgs, durs = pms_durations_from(routes) #TODO:PUT DURATION IN THE FORMULA
+def get_cleanest(routes:List[Route]):    
+    
+    if len(routes) < 2:
+        return routes[0]
+    
+    avgs, durs = pms_durations_from(routes[1:]) #TODO:PUT DURATION IN THE FORMULA
+    
+    avgs.insert(0,routes[0].avg_aq)
     
     min_i = 0
     for i in range(1,len(routes)):
         if avgs[min_i] > avgs[i]:
             min_i = i
     
-    return routes[min_i]
+    # append 
+    cleanest = routes[min_i]
+    cleanest["avg_aq"] = avgs[min_i]
+    
+    return cleanest
 
 def pms_durations(A,B):
     routes = fetch_direction(A,B)
