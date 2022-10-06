@@ -209,8 +209,8 @@ def db_add_settings(item):
             'air_pollution': item.get("air_pollution"),
             'road_closure': item.get("road_closure"),
             'setup': item.get("setup"),
-            'isLastTripRated': item.get("isLastTripRated")
-
+            'isLastTripRated': item.get("isLastTripRated"),
+            'deleteRequest': item.get("deleteRequest")
         }
     )
     return response
