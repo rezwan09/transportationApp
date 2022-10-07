@@ -48,6 +48,11 @@ def add_user_token():
     return res
 
 
+@app.route('/user/delete', methods=['POST'])
+def delete_user():
+    res = db_delete_user(request.get_json())
+    return res
+
 @app.route('/place/all', methods=['POST'])
 def get_places():
     # Get list of places by user_id
@@ -211,6 +216,26 @@ def db_add_settings(item):
             'setup': item.get("setup"),
             'isLastTripRated': item.get("isLastTripRated"),
             'deleteRequest': item.get("deleteRequest")
+        }
+    )
+    return response
+
+
+def db_delete_user(item):
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    response = table.update_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        },
+        UpdateExpression='SET deleteRequest = :dr',
+        ExpressionAttributeValues={
+            ':dr': True
         }
     )
     return response
