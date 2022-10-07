@@ -668,6 +668,9 @@ def db_get_upcoming_trips(item):
             medium = row['medium']
             user_id = row['user_id']
             schedule = row['days_of_week']
+            print("Schedule = ", schedule)
+            if len(schedule) == 0:
+                continue
             times = ''
             times = schedule.get(day_name)
             # Call the add trip method with all the info
