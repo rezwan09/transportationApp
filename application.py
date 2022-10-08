@@ -22,6 +22,7 @@ application = app = Flask(__name__)
 now = datetime.now(pytz.timezone('US/Mountain'))
 print("Mountain time now : ", now)
 
+
 @app.route('/')
 def index():
     print("Transportation app server")
@@ -37,7 +38,12 @@ def get_settings():
 @app.route('/user/settings/add', methods=['POST'])
 def add_settings():
     # Get list of places by user_id
-    res = db_add_settings(request.get_json())
+    update = request.get_json().get("update")
+    res = None
+    if not update or update == "":
+        res = db_add_settings(request.get_json())
+    else:
+        res = db_update_settings(request.get_json())
     return res
 
 
@@ -52,6 +58,7 @@ def add_user_token():
 def delete_user():
     res = db_delete_user(request.get_json())
     return res
+
 
 @app.route('/place/all', methods=['POST'])
 def get_places():
@@ -221,6 +228,64 @@ def db_add_settings(item):
     return response
 
 
+def db_update_settings(item):
+    print("In update")
+    table_name = "user_settings"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    update_expr = "SET "
+    exp_attr_val = {}
+    if item.get("full_name"):
+        update_expr = update_expr + "full_name = :full_name, "
+        exp_attr_val[':full_name'] = item.get("full_name")
+    if item.get("phone"):
+        update_expr = update_expr + "phone = :phone, "
+        exp_attr_val[':phone'] = item.get("phone")
+    if item.get("alert_time"):
+        update_expr = update_expr + "alert_time = :alert_time, "
+        exp_attr_val[':alert_time'] = item.get("alert_time")
+    if item.get("medium"):
+        update_expr = update_expr + "medium = :medium, "
+        exp_attr_val[':medium'] = item.get("medium")
+    if item.get("preferred_route"):
+        update_expr = update_expr + "preferred_route = :preferred_route, "
+        exp_attr_val[':preferred_route'] = item.get("preferred_route")
+    if item.get("alert_time_bool") is not None:
+        update_expr = update_expr + "alert_time_bool = :alert_time_bool, "
+        exp_attr_val[':alert_time_bool'] = item.get("alert_time_bool")
+    if item.get("trip_duration") is not None:
+        update_expr = update_expr + "trip_duration = :trip_duration, "
+        exp_attr_val[':trip_duration'] = item.get("trip_duration")
+    if item.get("air_pollution") is not None:
+        update_expr = update_expr + "air_pollution = :air_pollution, "
+        exp_attr_val[':air_pollution'] = item.get("air_pollution")
+    if item.get("road_closure") is not None:
+        update_expr = update_expr + "road_closure = :road_closure, "
+        exp_attr_val[':road_closure'] = item.get("road_closure")
+    if item.get("setup") is not None:
+        update_expr = update_expr + "setup = :setup, "
+        exp_attr_val[':setup'] = item.get("setup")
+    if item.get("isLastTripRated") is not None:
+        update_expr = update_expr + "isLastTripRated = :isLastTripRated, "
+        exp_attr_val[':isLastTripRated'] = item.get("isLastTripRated")
+    if item.get("deleteRequest"):
+        update_expr = update_expr + "deleteRequest = :deleteRequest, "
+        exp_attr_val[':deleteRequest'] = item.get("deleteRequest")
+
+    update_expr = update_expr[:-2]
+    print(update_expr)
+    response = table.update_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        },
+        UpdateExpression=update_expr,
+        ExpressionAttributeValues=exp_attr_val
+    )
+    return response
+
+
 def db_delete_user(item):
     table_name = "user_settings"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -371,7 +436,7 @@ def db_add_trip(item):
     table = dynamodb.Table(table_name)
 
     item = json.loads(json.dumps(item), parse_float=Decimal)
-    #item = json.loads(json.dumps(item))
+    # item = json.loads(json.dumps(item))
     # Timestamp in milliseconds to use as generated id, otherwise use provided id for update
     new_id = item.get('id')
     if item.get('id') == "" or item.get('id') is None:
@@ -742,7 +807,7 @@ def db_get_upcoming_trips(item):
 
                         # Dump to json and add/update
                         json_data = json.dumps(data)
-                        if addTrip==True:
+                        if addTrip == True:
                             db_add_trip(data)
 
         dt = dt + timedelta(days=1)
