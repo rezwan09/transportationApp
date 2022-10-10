@@ -785,7 +785,7 @@ def db_get_upcoming_trips(item):
                             print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
-                            data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                            data['suggested_start_time'] = res[0].strftime("%m-%d-%Y %H:%M:%S")
                             data['estimated_duration'] = res[1]
                             if data['suggested_start_time'] > now.strftime("%m-%d-%Y %H:%M:%S"):
                                 addTrip = True
@@ -813,6 +813,7 @@ def db_get_upcoming_trips(item):
     # Show the trips generated in the last block
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
          & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').eq(False)
+    print(str(fe))
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
