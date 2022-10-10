@@ -711,7 +711,7 @@ def db_get_upcoming_trips(item):
     to_time = from_time + timedelta(days=interval)
     from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
     to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
-
+    print("start = ", from_time, "end = ", to_time)
     # Generate trips first then show
     # Modifying code to generate all trips "interval" hours ahead and putting them into trips table
     # First scan the full table with the user_id
@@ -728,16 +728,15 @@ def db_get_upcoming_trips(item):
     date_end = date_start + timedelta(days=interval)
     while dt <= date_end:
         day_name = calendar.day_name[dt.weekday()]
+        print("Day = ", day_name)
         for row in rows:
             dst = row['dst']
             medium = row['medium']
             user_id = row['user_id']
             schedule = row['days_of_week']
-            print("Schedule = ", schedule)
-            if len(schedule) == 0:
-                continue
             times = ''
-            times = schedule.get(day_name)
+            if len(schedule) != 0:
+                times = schedule.get(day_name)
             # Call the add trip method with all the info
 
             data = {}
@@ -759,7 +758,7 @@ def db_get_upcoming_trips(item):
             data['trip_status'] = "NOT_STARTED"
             data['is_deleted'] = False
             # print(res_src, res_dst)
-            if times is not None:
+            if times is not None and times != '':
                 for t in times:
                     tm = None
                     try:
@@ -783,7 +782,7 @@ def db_get_upcoming_trips(item):
                         # skip while API disabled
                         addTrip = False
                         if srcAddr and dstAddr and dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
-                            print("Preffered arrival = ", preferred_arrival)
+                            print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
@@ -807,7 +806,7 @@ def db_get_upcoming_trips(item):
 
                         # Dump to json and add/update
                         json_data = json.dumps(data)
-                        if addTrip == True:
+                        if addTrip:
                             db_add_trip(data)
 
         dt = dt + timedelta(days=1)

@@ -79,10 +79,13 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     
 def get_departure_time(source,destination,preferred_arrival_time):
 
-    # Make Timezone specific (MT time)
-    print("Mountain time = ", datetime.datetime.now(pytz.timezone('US/Mountain')), ", Server time = ", datetime.datetime.now())
+    # MT time
+    now_mt_hr = datetime.datetime.now(pytz.timezone('US/Mountain')).hour
+    now_svr_hr = datetime.datetime.now().hour
+    diff_hr = now_svr_hr-now_svr_hr
+    print("Diff (Mountain time , Server time) = ", diff_hr)
     # The following line should be commented out when running on local server
-    preferred_arrival_time = preferred_arrival_time + timedelta(hours=2)
+    preferred_arrival_time = preferred_arrival_time + timedelta(hours=diff_hr)
 
     #normal duration from a to b
     normal_duration = Route(gmaps.directions(source,destination, arrival_time=preferred_arrival_time)[0]).duration
