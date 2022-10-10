@@ -58,7 +58,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     avg_aq = avg_aq[0]
     fastest_routes[0].json_object["avg_aq"] = avg_aq
     
-    if preference == 'safest':
+    if preference.lower() == 'safest':
         cleanest_route = get_cleanest(fastest_routes)
         return cleanest_route.json_object
     else: # pref is fastest
@@ -309,7 +309,7 @@ def get_cleanest(routes:List[Route]):
     
     # append 
     cleanest = routes[min_i]
-    cleanest["avg_aq"] = avgs[min_i]
+    cleanest.json_object["avg_aq"] = avgs[min_i]
     
     return cleanest
 
