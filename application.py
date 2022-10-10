@@ -580,7 +580,7 @@ def db_view_next_trip(item):
     # Get the params
     user_id = request.get_json().get("user_id")
     from_time = now
-    from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
+    from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
     db_get_upcoming_trips(item)
@@ -697,7 +697,7 @@ def db_get_upcoming_trips(item):
     nextTrip, isBreak = False, False
 
     if interval == 0:
-        interval = 8
+        interval = 7
         nextTrip = True
 
     # Connection and resources
@@ -709,8 +709,8 @@ def db_get_upcoming_trips(item):
     # Define time now and after the interval
     from_time = now
     to_time = from_time + timedelta(days=interval)
-    from_time = from_time.strftime("%m-%d-%Y %H:%M:%S")
-    to_time = to_time.strftime("%m-%d-%Y %H:%M:%S")
+    from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
+    to_time = to_time.strftime("%Y-%m-%d %H:%M:%S")
     print("start = ", from_time, "end = ", to_time)
     # Generate trips first then show
     # Modifying code to generate all trips "interval" hours ahead and putting them into trips table
@@ -766,8 +766,8 @@ def db_get_upcoming_trips(item):
                     except ValueError:
                         tm = datetime.strptime(t, "%H:%M").time()
                     dtcf = datetime.combine(dt, tm)
-                    dtc = dtcf.strftime("%m-%d-%Y %H:%M:%S")
-                    if dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
+                    dtc = dtcf.strftime("%Y-%m-%d %H:%M:%S")
+                    if dtc > now.strftime("%Y-%m-%d %H:%M:%S"):
                         data['scheduled_arrival'] = dtc
                         # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
                         srcAddr, dstAddr = None, None
@@ -778,16 +778,16 @@ def db_get_upcoming_trips(item):
                         if res_dst is not None and res_dst.get('address') is not None:
                             dstAddr = res_dst.get('address')
 
-                        preferred_arrival = datetime.strptime(dtc, '%m-%d-%Y %H:%M:%S')
+                        preferred_arrival = datetime.strptime(dtc, '%Y-%m-%d %H:%M:%S')
                         # skip while API disabled
                         addTrip = False
-                        if srcAddr and dstAddr and dtc > now.strftime("%m-%d-%Y %H:%M:%S"):
+                        if srcAddr and dstAddr and dtc > now.strftime("%Y-%m-%d %H:%M:%S"):
                             print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
-                            data['suggested_start_time'] = res[0].strftime("%m-%d-%Y %H:%M:%S")
+                            data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
                             data['estimated_duration'] = res[1]
-                            if data['suggested_start_time'] > now.strftime("%m-%d-%Y %H:%M:%S"):
+                            if data['suggested_start_time'] > now.strftime("%Y-%m-%d %H:%M:%S"):
                                 addTrip = True
                             else:
                                 addTrip = False
@@ -813,7 +813,6 @@ def db_get_upcoming_trips(item):
     # Show the trips generated in the last block
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
          & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').eq(False)
-    print(str(fe))
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -834,7 +833,7 @@ def db_view_trip_history(uid):
 
     # Define time now and after the interval
     time_now_dt = now
-    time_now = time_now_dt.strftime("%m-%d-%Y %H:%M:%S")
+    time_now = time_now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
     # Add filter expression and projection expression
     fe = Attr('user_id').eq(str(uid)) & (
@@ -854,7 +853,7 @@ def db_view_trip_history(uid):
             item['missed'] = "False"
 
         if item.get("trip_status") == "NOT_STARTED" \
-                and item.get("scheduled_arrival") > (time_now_dt - timedelta(hours=24)).strftime("%m-%d-%Y %H:%M:%S"):
+                and item.get("scheduled_arrival") > (time_now_dt - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S"):
             item['editable'] = "True"
         else:
             item['editable'] = "False"
@@ -904,7 +903,7 @@ def db_get_routes(item):
 
     # Get the eligible reported points from report table by time and location
     """time_lower = now - timedelta(hours=12)
-    time_lower = time_lower.strftime("%m-%d-%Y %H:%M:%S")
+    time_lower = time_lower.strftime("%Y-%m-%d %H:%M:%S")
     fe = Attr('issue').eq("ROAD_CLOSURE") & Attr('report_time').gte(time_lower)
     pe = "lat, lon"
     report_res = table.scan(
@@ -942,7 +941,7 @@ def db_add_report(item):
             'description': item.get("description"),
             'lat': item.get("lat"),
             'lon': item.get("lon"),
-            'report_time': now.strftime("%m-%d-%Y %H:%M:%S")
+            'report_time': now.strftime("%Y-%m-%d %H:%M:%S")
         }
     )
     return response
