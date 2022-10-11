@@ -19,9 +19,6 @@ application = app = Flask(__name__)
 # geocode_result = gmaps.geocode('1600 Amphitheatre Parkway, Mountain View, CA')
 # gmaps.reverse_geocode((40.714224, -73.961452))
 
-now = datetime.now(pytz.timezone('US/Mountain'))
-print("Mountain time now : ", now)
-
 
 @app.route('/')
 def index():
@@ -579,7 +576,7 @@ def db_view_next_trip(item):
 
     # Get the params
     user_id = request.get_json().get("user_id")
-    from_time = now
+    from_time = time_now()
     from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Generate the next trip only, the second argument is True when it's only next trip, False otherwise
@@ -707,7 +704,7 @@ def db_get_upcoming_trips(item):
     table = dynamodb.Table(table_name)
 
     # Define time now and after the interval
-    from_time = now
+    from_time = time_now()
     to_time = from_time + timedelta(days=interval)
     from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
     to_time = to_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -724,7 +721,7 @@ def db_get_upcoming_trips(item):
     )
     rows = pref_response['Items']
 
-    dt = date_start = now.date()
+    dt = date_start = time_now().date()
     date_end = date_start + timedelta(days=interval)
     while dt <= date_end:
         day_name = calendar.day_name[dt.weekday()]
@@ -767,7 +764,7 @@ def db_get_upcoming_trips(item):
                         tm = datetime.strptime(t, "%H:%M").time()
                     dtcf = datetime.combine(dt, tm)
                     dtc = dtcf.strftime("%Y-%m-%d %H:%M:%S")
-                    if dtc > now.strftime("%Y-%m-%d %H:%M:%S"):
+                    if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
                         data['scheduled_arrival'] = dtc
                         # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
                         srcAddr, dstAddr = None, None
@@ -781,13 +778,13 @@ def db_get_upcoming_trips(item):
                         preferred_arrival = datetime.strptime(dtc, '%Y-%m-%d %H:%M:%S')
                         # skip while API disabled
                         addTrip = False
-                        if srcAddr and dstAddr and dtc > now.strftime("%Y-%m-%d %H:%M:%S"):
+                        if srcAddr and dstAddr and dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
                             print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
                             res = functions.get_departure_time(srcAddr, dstAddr,
                                                                preferred_arrival)
                             data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
                             data['estimated_duration'] = res[1]
-                            if data['suggested_start_time'] > now.strftime("%Y-%m-%d %H:%M:%S"):
+                            if data['suggested_start_time'] > time_now().strftime("%Y-%m-%d %H:%M:%S"):
                                 addTrip = True
                             else:
                                 addTrip = False
@@ -832,12 +829,12 @@ def db_view_trip_history(uid):
     table = dynamodb.Table(table_name)
 
     # Define time now and after the interval
-    time_now_dt = now
-    time_now = time_now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    time_now_dt = time_now()
+    time_now_tm = time_now_dt.strftime("%Y-%m-%d %H:%M:%S")
 
     # Add filter expression and projection expression
     fe = Attr('user_id').eq(str(uid)) & (
-            Attr('scheduled_arrival').lte(time_now) | (Attr('trip_status').eq("COMPLETED")))
+            Attr('scheduled_arrival').lte(time_now_tm) | (Attr('trip_status').eq("COMPLETED")))
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
     # Scan table with filters
@@ -902,7 +899,7 @@ def db_get_routes(item):
     medium = item.get("medium")
 
     # Get the eligible reported points from report table by time and location
-    """time_lower = now - timedelta(hours=12)
+    """time_lower = time_now() - timedelta(hours=12)
     time_lower = time_lower.strftime("%Y-%m-%d %H:%M:%S")
     fe = Attr('issue').eq("ROAD_CLOSURE") & Attr('report_time').gte(time_lower)
     pe = "lat, lon"
@@ -941,7 +938,7 @@ def db_add_report(item):
             'description': item.get("description"),
             'lat': item.get("lat"),
             'lon': item.get("lon"),
-            'report_time': now.strftime("%Y-%m-%d %H:%M:%S")
+            'report_time': time_now().strftime("%Y-%m-%d %H:%M:%S")
         }
     )
     return response
@@ -957,6 +954,12 @@ def db_get_emojis():
     response = table.scan(
     )
     return response
+
+
+def time_now():
+    now = datetime.now(pytz.timezone('US/Mountain'))
+    print("Mountain time now : ", now)
+    return now
 
 
 if __name__ == "__main__":

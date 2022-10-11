@@ -52,7 +52,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     
     # fastest & cleanest
     fastest_routes = valid_routes #top 3
-    
+
     #calc the air quality for the fastest route
     avg_aq, _ = pms_durations_from(fastest_routes[:1])
     avg_aq = avg_aq[0]
