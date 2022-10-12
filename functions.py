@@ -62,8 +62,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
         cleanest_route = get_cleanest(fastest_routes)
         return cleanest_route.json_object
     else: # pref is fastest
-        map_list = list(map(lambda route: route.json_object, fastest_routes[:1]))
-        return json.dumps(map_list, default=lambda x: x.__dict__)
+        return fastest_routes[0].json_object
 
 
 """Return the departure time to go from a source to destination by calculating it in traffic
