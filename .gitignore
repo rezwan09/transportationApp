@@ -4,3 +4,4 @@ __pycache__/functions.cpython-38.pyc
 .idea/
 test.py
 test.ipynb
+subset.py
