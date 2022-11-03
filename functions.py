@@ -202,7 +202,6 @@ def get_valid_routes(A,B,routes:List[Route],reported_points,n_search_points=100)
 def breez_base_key():
     base = "https://api.breezometer.com/air-quality/v2/"
     api_key = brez_api
-    print(api_key)
     return (base,api_key)
 
 def fetch_point_aq(lat,lon):

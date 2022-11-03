@@ -309,6 +309,14 @@ def db_add_user_token(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
+    # Duplicate token check for same user. Scan and filter with user_id
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('token').eq(item.get("token"))
+    dup_response = table.scan(
+        FilterExpression=fe
+    )
+    if dup_response['Count'] > 0:
+        dup_response['id'] = 0
+        return dup_response
     # Generate an id
     new_id = round(time.time() * 1000)
     response = table.put_item(
