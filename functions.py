@@ -82,8 +82,12 @@ def get_departure_time(source,destination,preferred_arrival_time):
     now_svr = datetime.datetime.now()
     now_mt = datetime.datetime.now(pytz.timezone('US/Mountain'))
     print("Svr time = ", now_svr, " MT time = ", now_mt)
+    # Find the offset in hours
+    offset_sec = now_mt.utcoffset().total_seconds()
+    offset_sec = abs(offset_sec)
+    print("Offset in sec = ", offset_sec)
     # The following line should be commented out when running on local server
-    preferred_arrival_time = preferred_arrival_time + timedelta(hours=6)
+    preferred_arrival_time = preferred_arrival_time + timedelta(seconds=offset_sec)
 
     #normal duration from a to b
     normal_duration = Route(gmaps.directions(source,destination, arrival_time=preferred_arrival_time)[0]).duration
@@ -94,13 +98,13 @@ def get_departure_time(source,destination,preferred_arrival_time):
         real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic')[0]).duration
         real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
 
-        real_departure_time = real_departure_time - timedelta(hours=6)
+        real_departure_time = real_departure_time - timedelta(seconds=offset_sec)
         return (real_departure_time, real_duration)
     else:
         alt_duration = Route(gmaps.directions(source, destination, departure_time=datetime.datetime.now(), traffic_model='pessimistic')[0]).duration
         alt_departure_time = preferred_arrival_time - datetime.timedelta(seconds=alt_duration)
 
-        alt_departure_time = alt_departure_time - timedelta(hours=6)
+        alt_departure_time = alt_departure_time - timedelta(seconds=offset_sec)
         return (alt_departure_time, alt_duration)
     
     #TODO: We still need to provide the preferred route, add the mode of transportation

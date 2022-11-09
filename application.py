@@ -129,6 +129,13 @@ def end_trip():
     return res
 
 
+@app.route('/trip/cancel', methods=['POST'])
+def cancel_trip():
+    # End this trip
+    res = db_cancel_trip(request.get_json())
+    return res
+
+
 @app.route('/trip/feedback', methods=['POST'])
 def add_trip_feedback():
     # End this trip
@@ -667,6 +674,25 @@ def db_end_trip(item):
             ':dst_lon': item.get("dst_lon"),
             ':route': item.get("route"),
             ':ts': "COMPLETED"
+        }
+    )
+    return response
+
+
+def db_cancel_trip(item):
+    table_name = "trip"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression='SET trip_status = :ts',
+        ExpressionAttributeValues={
+            ':ts': "CANCELLED"
         }
     )
     return response
