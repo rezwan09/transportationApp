@@ -111,7 +111,9 @@ def remove_trip():
 @app.route('/trip/next', methods=['POST'])
 def view_next_trip():
     # Get one next trip
-    res = db_view_next_trip(request.get_json())
+    #res = db_view_next_trip(request.get_json())
+    res = db_view_next_trip_modified(request.get_json())
+
     return res
 
 
@@ -623,6 +625,147 @@ def db_view_next_trip(item):
     return response
 
 
+def db_view_next_trip_modified(item):
+    # Connection resources
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+
+    # Get the params
+    # Get the params
+    jsn = request.get_json()
+    user_id = jsn.get("user_id")
+    src = jsn.get("src")
+    src_lat = jsn.get("src_lat")
+    src_lon = jsn.get("src_lon")
+    src_addr = jsn.get("src_addr")
+    interval = jsn.get("interval")
+
+    # Fetch all preferred days & times from table
+    table = dynamodb.Table("user_route_preference")
+    fe = Key('user_id').eq(str(user_id))
+    pe = "user_id, days_of_week, medium, dst"
+    # Scan table with filters
+    pref_response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+    rows = pref_response['Items']
+
+    # Save the times and corresponding dst and medium in arrays.
+    dt_time_arr = []
+    dst_arr = []
+    medium_arr = []
+
+    # Construct date+time from preferences and fill out the arrays; Sort later
+    dt = date_start = time_now().date()
+    date_end = date_start + timedelta(days=7)
+    while dt <= date_end:
+        day_name = calendar.day_name[dt.weekday()]
+        for row in rows:
+            dst = row['dst']
+            medium = row['medium']
+            schedule = row['days_of_week']
+            times = ''
+            if len(schedule) != 0:
+                times = schedule.get(day_name)
+            if times is not None and times != '':
+                for t in times:
+                    tm = None
+                    try:
+                        tm = datetime.strptime(t, "%H:%M:%S").time()
+                    except ValueError:
+                        tm = datetime.strptime(t, "%H:%M").time()
+                    dtcf = datetime.combine(dt, tm)
+                    dtc = dtcf.strftime("%Y-%m-%d %H:%M:%S")
+                    if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+                        dt_time_arr.append(dtc)
+                        dst_arr.append(dst)
+                        medium_arr.append(medium)
+
+        dt = dt + timedelta(days=1)
+
+    # Sort the dt_time_arr to get the next trip's scheduled time and select the top
+    dt_time_arr, dst_arr, medium_arr = zip(*sorted(zip(dt_time_arr, dst_arr, medium_arr)))
+    dt_time_new = dt_time_arr[0]
+    dst_new = dst_arr[0]
+    medium_new = medium_arr[0]
+
+    # Create the data to insert (duplicate check and insert)
+    data = {}
+    res_src = src
+    if src:
+        res_src = db_get_place({"id": src})
+        res_src = json.loads(res_src).get("Item")
+    res_dst = db_get_place({"id": dst})
+    res_dst = json.loads(res_dst).get("Item")
+    data['src'] = res_src
+    data['src_lat'] = src_lat
+    data['src_lon'] = src_lon
+    data['src_addr'] = src_addr
+    data['dst_id'] = dst
+    data['dst'] = res_dst
+    data['medium'] = medium
+    data['user_id'] = user_id
+    data['trip_status'] = "NOT_STARTED"
+    data['is_deleted'] = False
+    if dt_time_new > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+        data['scheduled_arrival'] = dt_time_new
+        # Add Suggested_start_time, estimated_duration, on_time status, road_quality etc.
+        srcAddr, dstAddr = None, None
+        if res_src is not None and res_src.get('address') is not None:
+            srcAddr = res_src.get('address')
+        else:
+            srcAddr = src_addr
+        if res_dst is not None and res_dst.get('address') is not None:
+            dstAddr = res_dst.get('address')
+
+        preferred_arrival = datetime.strptime(dtc, '%Y-%m-%d %H:%M:%S')
+        # skip while API disabled
+        addTrip = False
+        if srcAddr and dstAddr and dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+            print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
+            res = functions.get_departure_time(srcAddr, dstAddr,
+                                               preferred_arrival)
+            data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+            data['estimated_duration'] = res[1]
+            if data['suggested_start_time'] > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+                addTrip = True
+            else:
+                addTrip = False
+
+        # Optimization needed: If trip not found in table create it
+        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dt_time_new) & Attr('dst_id').eq(
+            dst) & Attr('is_deleted').eq(False)
+        trip_table = dynamodb.Table("trip")
+        result = trip_table.scan(
+            FilterExpression=fe
+        )
+
+        # Add or update, get id from existing item
+        if result['Count'] > 0:
+            data['id'] = result['Items'][0].get('id')
+
+        # Dump to json and add/update
+        json_data = json.dumps(data)
+        if addTrip:
+            db_add_trip(data)
+    # Scan trip table
+    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dt_time_new) & Attr('dst_id').eq(
+            dst_new) & Attr('is_deleted').eq(False) \
+        & (Attr('trip_status').eq("NOT_STARTED") | Attr('trip_status').eq("STARTED"))
+    # Scan table with filters
+    trip_table = dynamodb.Table("trip")
+    response = trip_table.scan(
+        FilterExpression=fe
+    )
+
+    # Use "Item" key instead of "Items"
+    response["Item"] = response["Items"][0]
+    response["Count"] = 1
+    del response["Items"]
+
+    return response
+
+
 def db_start_trip(item):
     table_name = "trip"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -843,7 +986,7 @@ def db_get_upcoming_trips(item):
         dt = dt + timedelta(days=1)
     # Show the trips generated in the last block
     fe = Attr('user_id').eq(str(user_id)) & Attr('arrived').eq(None) & Attr('scheduled_arrival').gte(from_time) \
-         & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').eq(False)
+         & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').eq(False) & Attr('trip_status').ne("CANCELLED")
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -868,7 +1011,7 @@ def db_view_trip_history(uid):
 
     # Add filter expression and projection expression
     fe = Attr('user_id').eq(str(uid)) & (
-            Attr('scheduled_arrival').lte(time_now_tm) | (Attr('trip_status').eq("COMPLETED")))
+            Attr('scheduled_arrival').lte(time_now_tm) | (Attr('trip_status').eq("COMPLETED") | Attr('trip_status').eq("CANCELLED")))
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
     # Scan table with filters
