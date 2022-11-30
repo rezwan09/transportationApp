@@ -759,8 +759,12 @@ def db_view_next_trip_modified(item):
     )
 
     # Use "Item" key instead of "Items"
-    response["Item"] = response["Items"][0]
-    response["Count"] = 1
+    if len(response["Items"]) == 0:
+        response["Item"] = None
+        response["Count"] = 0
+    else:
+        response["Item"] = response["Items"][0]
+        response["Count"] = 1
     del response["Items"]
 
     return response
