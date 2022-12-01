@@ -75,17 +75,19 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
     Returns:
         (date,timedelta,int): returns a tuple containing the departure time, and the duration of the trip
     """
+
     
 def get_departure_time(source,destination,preferred_arrival_time):
-
+    # Log params
+    print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time")
     # MT time
     now_svr = datetime.datetime.now()
     now_mt = datetime.datetime.now(pytz.timezone('US/Mountain'))
-    print("Svr time = ", now_svr, " MT time = ", now_mt)
+    #print("Svr time = ", now_svr, " MT time = ", now_mt)
     # Find the offset in hours
     offset_sec = now_mt.utcoffset().total_seconds()
     offset_sec = abs(offset_sec)
-    print("Offset in sec = ", offset_sec)
+    #print("Offset in sec = ", offset_sec)
     # The following line should be commented out when running on local server
     preferred_arrival_time = preferred_arrival_time + timedelta(seconds=offset_sec)
 

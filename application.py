@@ -1139,7 +1139,7 @@ def db_get_emojis():
 
 def time_now():
     now = datetime.now(pytz.timezone('US/Mountain'))
-    print("Mountain time now : ", now)
+    #print("Mountain time now : ", now)
     return now
 
 
