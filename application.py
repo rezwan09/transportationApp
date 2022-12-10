@@ -684,8 +684,6 @@ def db_view_next_trip_modified(item):
         dt = dt + timedelta(days=1)
 
     # Sort the dt_time_arr to get the next trip's scheduled time and select the top
-    print("arrays")
-    print(dt_time_arr, dst_arr, medium_arr)
     dt_time_arr, dst_arr, medium_arr = zip(*sorted(zip(dt_time_arr, dst_arr, medium_arr)))
     dt_time_new = dt_time_arr[0]
     dst_new = dst_arr[0]
@@ -703,7 +701,7 @@ def db_view_next_trip_modified(item):
     data['src_lat'] = src_lat
     data['src_lon'] = src_lon
     data['src_addr'] = src_addr
-    data['dst_id'] = dst
+    data['dst_id'] = dst_new
     data['dst'] = res_dst
     data['medium'] = medium
     data['user_id'] = user_id
