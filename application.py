@@ -746,8 +746,12 @@ def db_view_next_trip_modified(item):
 
         # Dump to json and add/update
         json_data = json.dumps(data)
+        print("addTrip = ", addTrip)
         if addTrip:
-            db_add_trip(data)
+            print("Next trip being added...")
+            r = db_add_trip(data)
+            if r:
+                print("Trip added!")
     # Scan trip table
     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dt_time_new) & Attr('dst_id').eq(
             dst_new) & Attr('is_deleted').eq(False) \

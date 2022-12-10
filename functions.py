@@ -76,7 +76,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
         (date,timedelta,int): returns a tuple containing the departure time, and the duration of the trip
     """
 
-    
+
 def get_departure_time(source,destination,preferred_arrival_time):
     # Log params
     print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time")
