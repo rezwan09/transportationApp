@@ -739,7 +739,6 @@ def db_view_next_trip_modified(item):
         result = trip_table.scan(
             FilterExpression=fe
         )
-
         # Add or update, get id from existing item
         if result['Count'] > 0:
             data['id'] = result['Items'][0].get('id')
@@ -761,7 +760,7 @@ def db_view_next_trip_modified(item):
     response = trip_table.scan(
         FilterExpression=fe
     )
-
+    print("Query param: scheduled_arrival = ", dt_time_new, ", dst_id = ", dst_new)
     # Use "Item" key instead of "Items"
     if len(response["Items"]) == 0:
         response["Item"] = None
