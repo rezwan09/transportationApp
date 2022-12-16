@@ -806,6 +806,7 @@ def db_start_trip(item):
 
 
 def db_end_trip(item):
+    print("Inside End Trip")
     table_name = "trip"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -826,6 +827,7 @@ def db_end_trip(item):
             ':ts': "COMPLETED"
         }
     )
+    print("End trip response = ", response)
     return response
 
 
