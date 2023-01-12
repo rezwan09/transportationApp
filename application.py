@@ -13,6 +13,7 @@ import functions
 
 application = app = Flask(__name__)
 
+
 # gmaps = googlemaps.Client(key="AIzaSyBoBDraxeL4lK2Ds0fwqNRm-acp6_b1PzY")
 
 # Geocoding an address and Look up an address with reverse geocoding
@@ -111,7 +112,7 @@ def remove_trip():
 @app.route('/trip/next', methods=['POST'])
 def view_next_trip():
     # Get one next trip
-    #res = db_view_next_trip(request.get_json())
+    # res = db_view_next_trip(request.get_json())
     res = db_view_next_trip_modified(request.get_json())
 
     return res
@@ -189,6 +190,15 @@ def add_report():
 def get_emojis():
     # Get list of places by user_id
     res = db_get_emojis()
+    return res
+
+
+############---For Slack---##########
+
+@app.route('/slack/planned_trips/add', methods=['POST'])
+def slack_plan_trips_add():
+    """ This will do insert or update"""
+    res = db_slack_plan_trips_add(request.get_json())
     return res
 
 
@@ -753,8 +763,8 @@ def db_view_next_trip_modified(item):
                 print("Trip added!")
     # Scan trip table
     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dt_time_new) & Attr('dst_id').eq(
-            dst_new) & Attr('is_deleted').eq(False) \
-        & (Attr('trip_status').eq("NOT_STARTED") | Attr('trip_status').eq("STARTED"))
+        dst_new) & Attr('is_deleted').eq(False) \
+         & (Attr('trip_status').eq("NOT_STARTED") | Attr('trip_status').eq("STARTED"))
     # Scan table with filters
     trip_table = dynamodb.Table("trip")
     response = trip_table.scan(
@@ -1020,7 +1030,8 @@ def db_view_trip_history(uid):
 
     # Add filter expression and projection expression
     fe = Attr('user_id').eq(str(uid)) & (
-            Attr('scheduled_arrival').lte(time_now_tm) | (Attr('trip_status').eq("COMPLETED") | Attr('trip_status').eq("CANCELLED")))
+            Attr('scheduled_arrival').lte(time_now_tm) | (
+            Attr('trip_status').eq("COMPLETED") | Attr('trip_status').eq("CANCELLED")))
     pe = "id, user_id, src, dst, started, arrived, scheduled_arrival, route, suggested_routes, " \
          "trip_feedback, trip_status"
     # Scan table with filters
@@ -1142,9 +1153,59 @@ def db_get_emojis():
     return response
 
 
+###
+
+
+def db_slack_plan_trips_add(item):
+    table_name = "slack_planned_trips"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    # Duplicate location check for same user. Scan and filter with user_id and place_name
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('src_address').eq(item.get("src_address")) \
+         & Attr('dst_address').eq(item.get("dst_address"))
+    dup_response = table.scan(
+        FilterExpression=fe
+    )
+    print(dup_response)
+    c = dup_response['Count']
+    new_id = None
+    if c == 1:
+        # Duplicate Entry
+        new_id = str(dup_response['Items'][0]['id'])
+        print("Duplicate id = ", new_id)
+    else:
+        new_id = item.get('id')
+        print("Updating id = ", new_id)
+
+    # If new, Timestamp in milliseconds to use as generated id, otherwise use provided id for update
+    if new_id == "" or new_id is None:
+        new_id = round(time.time() * 1000)
+
+    response = table.put_item(
+        Item={
+            'id': str(new_id),
+            'user_id': str(item.get("user_id")),
+            'user_name': str(item.get("user_name")),
+            'src_name': item.get("src_name"),
+            'src_address': item.get("src_address"),
+            'dst_name': item.get("dst_name"),
+            'dst_address': item.get("dst_address"),
+            'medium': item.get("medium"),
+            'days_of_week': item.get("days_of_week"),
+            'update_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    )
+    response['id'] = new_id
+    return response
+
+
 def time_now():
     now = datetime.now(pytz.timezone('US/Mountain'))
-    #print("Mountain time now : ", now)
+    # print("Mountain time now : ", now)
     return now
 
 
