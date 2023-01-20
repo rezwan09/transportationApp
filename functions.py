@@ -79,7 +79,7 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
 
 def get_departure_time(source,destination,preferred_arrival_time):
     # Log params
-    print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time")
+    print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time = ", preferred_arrival_time)
     # MT time
     now_svr = datetime.datetime.now()
     now_mt = datetime.datetime.now(pytz.timezone('US/Mountain'))
