@@ -196,24 +196,23 @@ def get_emojis():
 ############---For Slack---##########
 
 @app.route('/slack/schedule/add', methods=['POST'])
-def slack_plan_trips_add():
+def slack_schedule_add():
     """ This will do insert or update"""
-    res = db_slack_plan_trips_add(request.get_json())
+    res = db_slack_schedule_add(request.get_json())
     return res
 
 
 @app.route('/slack/schedule/delete', methods=['POST'])
-def slack_plan_trips_delete():
+def slack_schedule_delete():
     """ This will do insert or update"""
-    res = db_slack_plan_trips_delete(request.get_json())
+    res = db_slack_schedule_delete(request.get_json())
     return res
 
 
 @app.route('/slack/schedule/all', methods=['POST'])
-def slack_plan_trips_add():
+def slack_schedule_get_all():
     """ This will do insert or update"""
-    res = None
-    #res = db_slack_plan_trips_all(request.get_json())
+    res = db_slack_schedule_get_all(request.get_json())
     return res
 
 
@@ -1178,7 +1177,7 @@ def db_get_emojis():
 ### For Slack App ###
 
 
-def db_slack_plan_trips_add(item):
+def db_slack_schedule_add(item):
     table_name = "slack_planned_trips"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -1225,6 +1224,34 @@ def db_slack_plan_trips_add(item):
     return response
 
 
+def db_slack_schedule_delete(item):
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table("slack_planned_trips")
+    response = table.delete_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
+    return response
+
+
+def db_slack_schedule_get_all(item):
+    table_name = "slack_planned_trips"
+    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    # Duplicate location check for same user. Scan and filter with user_id and place_name
+    fe = Attr('user_id').eq(str(item.get("user_id")))
+    response = table.scan(
+        FilterExpression=fe
+    )
+    return response
+
+
+# Helper Function to add a trip entry
 def db_slack_add_trip(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table("slack_trip")
@@ -1246,17 +1273,6 @@ def db_slack_add_trip(item):
             'estimated_duration': item.get("estimated_duration"),
             'update_time': time_now().strftime("%Y-%m-%d %H:%M:%S"),
             'trip_feedback': item.get("trip_feedback")
-        }
-    )
-    return response
-
-
-def db_slack_plan_trips_delete(item):
-    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
-    table = dynamodb.Table("slack_planned_trips")
-    response = table.delete_item(
-        Key={
-            'id': str(item.get("id"))
         }
     )
     return response
