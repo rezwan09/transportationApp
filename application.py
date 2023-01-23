@@ -1346,6 +1346,7 @@ def db_slack_upcoming_trips(item):
                 dtc = preferred_arrival.strftime("%Y-%m-%d %H:%M:%S")
                 data['scheduled_arrival'] = dtc
                 print("dtc = ", dtc, " time now = ", time_now())
+                print(dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"))
                 if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
                     print("Preferred arrival ", dtc)
                     res = functions.get_departure_time(src, dst, preferred_arrival)
