@@ -195,17 +195,25 @@ def get_emojis():
 
 ############---For Slack---##########
 
-@app.route('/slack/planned_trips/add', methods=['POST'])
+@app.route('/slack/schedule/add', methods=['POST'])
 def slack_plan_trips_add():
     """ This will do insert or update"""
     res = db_slack_plan_trips_add(request.get_json())
     return res
 
 
-@app.route('/slack/planned_trips/delete', methods=['POST'])
+@app.route('/slack/schedule/delete', methods=['POST'])
 def slack_plan_trips_delete():
     """ This will do insert or update"""
     res = db_slack_plan_trips_delete(request.get_json())
+    return res
+
+
+@app.route('/slack/schedule/all', methods=['POST'])
+def slack_plan_trips_add():
+    """ This will do insert or update"""
+    res = None
+    #res = db_slack_plan_trips_all(request.get_json())
     return res
 
 
