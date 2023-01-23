@@ -223,6 +223,13 @@ def slack_upcoming_trips():
     return res
 
 
+@app.route('/slack/feedback/add', methods=['POST'])
+def slack_feedback_add():
+    """ This will do insert or update"""
+    res = db_slack_feedback_add(request.get_json())
+    return res
+
+
 def db_get_settings(item):
     table_name = "user_settings"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -1305,7 +1312,7 @@ def db_slack_upcoming_trips(item):
     table = dynamodb.Table(table_name)
 
     # Get today's date and day name
-    today_date = datetime.now().date()
+    today_date = time_now().date()
     today_name = calendar.day_name[today_date.weekday()]
     print("today is = ", today_date.strftime("%Y-%m-%d"), today_name)
     # Generate trips first then show
@@ -1338,6 +1345,7 @@ def db_slack_upcoming_trips(item):
                 preferred_arrival = datetime.combine(today_date, tm)
                 dtc = preferred_arrival.strftime("%Y-%m-%d %H:%M:%S")
                 data['scheduled_arrival'] = dtc
+                print("dtc = ", dtc, " time now = ", time_now())
                 if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
                     print("Preferred arrival ", dtc)
                     res = functions.get_departure_time(src, dst, preferred_arrival)
@@ -1366,6 +1374,25 @@ def db_slack_upcoming_trips(item):
     trip_table = dynamodb.Table("slack_trip")
     response = trip_table.scan(
         FilterExpression=fe
+    )
+    return response
+
+
+def db_slack_feedback_add(item):
+    table_name = "slack_trip"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    #item = json.loads(json.dumps(item), parse_float=Decimal)
+
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression='SET feedback = :trip_feedback',
+        ExpressionAttributeValues={
+            ':trip_feedback': item.get("feedback")
+        }
     )
     return response
 
