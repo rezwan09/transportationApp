@@ -1218,6 +1218,7 @@ def db_slack_schedule_add(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
+            'schedule_name': item.get("schedule_name"),
             'src_name': item.get("src_name"),
             'src_address': item.get("src_address"),
             'dst_name': item.get("dst_name"),
