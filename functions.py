@@ -11,13 +11,19 @@ from datetime import timedelta
 import matplotlib.pyplot as plt
 import json
 import pytz
+import geopy
+import geopy.distance
+
 
 #client initiate gmaps client
 api_key = open('google_maps_api.txt').readlines()[0]
 brez_api = open('breezometer_api.txt').readlines()[0]
-gmaps = googlemaps.Client(key=api_key)
-
-"""This method returns a list of the fastest suggested routes.
+cotrip_api_key = open('cotrip_api_key.txt').readlines()[0] 
+gmaps = googlemaps.Client(key=api_key)   
+    
+def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest', medium="driving"):
+    
+    '''This method returns a list of the fastest suggested routes.
 
     Args:
         A (String): Source location or name 
@@ -28,9 +34,7 @@ gmaps = googlemaps.Client(key=api_key)
 
     Returns:
         [Route]: up to three Google Maps Route object in JSON format. 
-    """    
-    
-def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest', medium="driving"):
+    '''
     
     routes_dict = {}
 
@@ -65,7 +69,9 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
         return fastest_routes[0].json_object
 
 
-"""Return the departure time to go from a source to destination by calculating it in traffic
+def get_departure_time(source,destination,preferred_arrival_time):
+    
+    '''Return the departure time to go from a source to destination by calculating it in traffic
 
     Args:
         A (String): Source location or name 
@@ -74,10 +80,8 @@ def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='f
 
     Returns:
         (date,timedelta,int): returns a tuple containing the departure time, and the duration of the trip
-    """
-
-
-def get_departure_time(source,destination,preferred_arrival_time):
+    '''
+    
     # Log params
     print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time = ", preferred_arrival_time)
     # MT time
@@ -110,6 +114,27 @@ def get_departure_time(source,destination,preferred_arrival_time):
         return (alt_departure_time, alt_duration)
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
+    
+def get_info(src,dst,to_date=None,types=["plannedEvents","incidents"]):
+    '''
+    Returns the information points for the selected API type that resides between the src and destination
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","snowPlows"]
+    returns: a dictionary of list of each type
+    '''
+    
+    info_dic = {}
+    for type in types:
+        if type == "plannedEvents":
+            info_dic[type] = get_planned_events(src,dst,to_date)
+        elif type == "incidents":
+            info_dic[type] = get_incidents(src,dst)
+        else:
+            return info_dic
+    #return 
+    return info_dic
 
 
 
@@ -489,7 +514,6 @@ def reduce_points(points_list, n=5):
     reduce the number of points from a list of lists to 5 points
     returns a list of list of the reduced number of points
     '''
-    
     common_points = find_common_points(points_list)
     removed_common = remove_common(points_list, common_points)
     reduced_lists = []
@@ -498,3 +522,162 @@ def reduce_points(points_list, n=5):
         reduced_lists.append(ptlst)
     return reduced_lists
 
+#helping funcs
+def distance(p1,p2):
+    '''
+    Returns the distance between two coordinates in meters
+    p1((float,float))*: tuple of latitidue and longitude for the first point
+    p2((float,float))*: tuple of latitidue and longitude for the second point
+    returns (float): distance in meters
+    '''
+    return geopy.distance.geodesic(p1, p2).m
+
+def draw_circle(src_p,dst_p,threashhold=50):
+    '''
+    Returns a circle center and radius between two points
+    src_p((float,float))*: tuple of latitidue and longitude for the source point
+    dst_p((float,float))*: tuple of latitidue and longitude for the destination point
+    threashhold(float): an extra distance that will expand outside the circle in both directions in (m)
+    returns((float,float),float): a tuple of center and radius
+    '''
+    center_lat = (src_p[0] + dst_p[0]) / 2
+    center_lon = (src_p[1] + dst_p[1]) / 2
+    radius = distance(src_p,dst_p)/2 + threashhold
+    
+    return ((center_lat,center_lon),radius)
+    
+def in_circle(point,center,radius):
+    '''
+    Returns if a point is in a circle or not
+    point((float,float)): the test point
+    center((float,float)): center of circle
+    radius(float): the radius of the circle
+    returns(bool): True or False
+    '''
+    return distance(center,point) < radius
+
+def fetch(type):
+    '''
+    type(str): fetches COTrip's API based on the type ["plannedEvents","incidents","roadConditions","weatherStations","snowPlows"]
+    returns([dict]): json response of the API call
+    '''
+    return requests.get("https://data.cotrip.org/api/v1/%s?apiKey=J2N7GKZ-37Q4XSB-HXDQKMJ-6EEQH88"%type).json()
+
+def filter_events(events,src,dst):
+    '''
+    Filters the events to be in a circle between src and dist
+    events([dict]): The response from the cotrip API call
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    '''
+    center, radius = draw_circle(src,dst)
+    print("circle center (%f,%f), radius %f" % (center[0],center[1], radius))
+    close_events = []
+    for event in events["features"]:
+        coords = event["geometry"]["coordinates"]
+        for coord in coords:
+            if in_circle((coord[1],coord[0]),center,radius):
+                close_events.append(event)
+                break
+            
+    return close_events
+
+def filter_incidents(events,src,dst):
+    '''
+    Filters the events to be in a circle between src and dist
+    events([dict]): The response from the cotrip API call
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    '''
+    center, radius = draw_circle(src,dst)
+    close_events = []
+    for event in events["features"]:
+        coords = event["geometry"]["coordinates"]
+        if type(coords[0]) == float:
+            if in_circle((coords[1],coords[0]),center,radius):
+                close_events.append(event)
+        else:
+            for coord in coords:
+                if len(coord) != 2:
+                    continue
+                if in_circle((coord[1],coord[0]),center,radius):
+                    close_events.append(event)
+                    
+    return close_events
+
+def get_planned_events(src,dst,to_date=None):
+    '''
+    Gets the planned events from source to destination 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    returns: a list of planned events json objects
+    '''
+    events = fetch("plannedEvents")
+    close_events = filter_events(events,src,dst)
+    print("in circle events %d" % len(close_events))
+    
+    #filter by date
+    if to_date == None:
+        today = datetime.datetime.today()
+        to_date = today + timedelta(days=1)
+    
+    # get all events that started in the past and did not end yet or will start tomorrow.
+    timely_events = list(filter(lambda x: datetime.datetime.strptime(x["properties"]["schedule"][0]["startTime"],'%Y-%m-%dT%H:%M:%S.%fZ') <= to_date , close_events))
+    timely_events = list(filter(lambda x: datetime.datetime.strptime(x["properties"]["schedule"][0]["endTime"],'%Y-%m-%dT%H:%M:%S.%fZ') >= today , close_events))
+    timely_events.sort(key=lambda x: x["properties"]["startTime"])
+        
+    # construct return dictionary
+    planned_events = []
+    for event in timely_events:
+        text = event["properties"]["travelerInformationMessage"]
+        start_date = event["properties"]["schedule"][0]["startTime"]
+        end_date = event["properties"]["schedule"][0]["endTime"]
+        points = []
+        for point in event["geometry"]["coordinates"]:
+            points.append(point)
+            
+        #add event to dictionary
+        planned_events.append({"text":text,"start_date":start_date,"end_date":end_date,"points":points})
+    
+    #return plannedEvents
+    return planned_events
+
+def get_incidents(src,dst):
+    '''
+    Gets the indidents from source to destination 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    returns: a list of incident json objects
+    '''
+    events = fetch("incidents")
+    close_events = filter_incidents(events,src,dst)
+    print("in circle incidents %d" % len(close_events))
+    
+    if len(close_events) == 0:return [] # return if 0
+    
+    #filter cleared 
+    filtered_events = list(filter(lambda x: x["properties"]["status"] != "event cleared" , close_events))
+    if len(filtered_events) == 0:return [] # return if 0
+    
+    # construct return dictionary
+    planned_events = []
+    for event in events["features"]:
+        text = event["properties"]["travelerInformationMessage"]
+        start_date = event["properties"]["startTime"]
+        points = []
+        # sometimes it is a 1d arry (case 1) and sometimes it is 2d (case 2)
+        coords = event["geometry"]["coordinates"]
+        if type(coords[0]) == float:
+            points.append(coords)
+        else:
+            for point in coords:
+                points.append(point)
+            
+        #add event to dictionary
+        planned_events.append({"text":text,"start_date":start_date,"points":points})
+    
+    #return plannedEvents
+    return planned_events
