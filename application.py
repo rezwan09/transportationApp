@@ -1306,6 +1306,7 @@ def db_slack_add_trip(item):
 
 def db_slack_upcoming_trips(item):
     user_id = item.get("user_id")
+    day = item.get("day")
 
     # Connection and resources
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -1314,8 +1315,8 @@ def db_slack_upcoming_trips(item):
 
     # Get today's date and day name
     today_date = time_now().date()
-    today_name = calendar.day_name[today_date.weekday()]
-    print("today is = ", today_date.strftime("%Y-%m-%d"), today_name)
+    tomorrow_date = today_date + timedelta(days=1)
+
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
@@ -1327,47 +1328,60 @@ def db_slack_upcoming_trips(item):
     )
     data = {}
     rows = pref_response['Items']
-    for row in rows:
-        src = row['src_address']
-        dst = row['dst_address']
-        medium = row['medium']
-        days_of_week = row['days_of_week']
-        times = days_of_week.get(today_name)
-        data['user_id'] = user_id
-        data['src'] = src
-        data['dst'] = dst
-        data['medium'] = medium
-        if times is not None and times != '':
-            for t in times:
-                try:
-                    tm = datetime.strptime(t, "%H:%M:%S").time()
-                except ValueError:
-                    tm = datetime.strptime(t, "%H:%M").time()
-                preferred_arrival = datetime.combine(today_date, tm)
-                dtc = preferred_arrival.strftime("%Y-%m-%d %H:%M:%S")
-                data['scheduled_arrival'] = dtc
-                print("dtc = ", dtc, " time now = ", time_now())
-                print(dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"))
-                if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
-                    print("Preferred arrival ", dtc)
-                    res = functions.get_departure_time(src, dst, preferred_arrival)
-                    data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
-                    data['estimated_duration'] = res[1]
-                    # Add the trip
-                    # Optimization needed: If trip not found in table create it
-                    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst_address').eq(dst)
-                    trip_table = dynamodb.Table("slack_trip")
-                    result = trip_table.scan(
-                        FilterExpression=fe
-                    )
-                    # Add or update, get id from existing item
-                    if result['Count'] > 0:
-                        data['id'] = result['Items'][0].get('id')
-                    db_slack_add_trip(data)
+    dates = [today_date, tomorrow_date]
+    for dt in dates:
+        for row in rows:
+            src = row['src_address']
+            dst = row['dst_address']
+            medium = row['medium']
+            days_of_week = row['days_of_week']
+            day_name = calendar.day_name[dt.weekday()]
+            print("The day = ", dt.strftime("%Y-%m-%d"), day_name)
+            times = days_of_week.get(day_name)
+            data['user_id'] = user_id
+            data['src'] = src
+            data['dst'] = dst
+            data['medium'] = medium
+            if times is not None and times != '':
+                for t in times:
+                    print("time = ", t)
+                    try:
+                        tm = datetime.strptime(t, "%H:%M:%S").time()
+                    except ValueError:
+                        tm = datetime.strptime(t, "%H:%M").time()
+                    preferred_arrival = datetime.combine(dt, tm)
+                    dtc = preferred_arrival.strftime("%Y-%m-%d %H:%M:%S")
+                    data['scheduled_arrival'] = dtc
+                    print("dtc = ", dtc, " time now = ", time_now())
+                    print(dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"))
+                    if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+                        print("Preferred arrival ", dtc)
+                        res = functions.get_departure_time(src, dst, preferred_arrival)
+                        data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                        data['estimated_duration'] = res[1]
+                        # Add the trip
+                        # Optimization needed: If trip not found in table create it
+                        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst_address').eq(
+                            dst)
+                        trip_table = dynamodb.Table("slack_trip")
+                        result = trip_table.scan(
+                            FilterExpression=fe
+                        )
+                        # Add or update, get id from existing item
+                        if result['Count'] > 0:
+                            data['id'] = result['Items'][0].get('id')
+                        db_slack_add_trip(data)
 
     # Show the trips generated in the last block
-    from_time = time_now()
+    from_time = time_now().date()
     to_time = from_time + timedelta(days=1)
+    if day.lower() == "today":
+        from_time = time_now().date()
+        to_time = from_time + timedelta(days=1)
+    if day.lower() == "tomorrow":
+        from_time = time_now().date()+timedelta(days=1)
+        to_time = from_time + timedelta(days=1)
+
     from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
     to_time = to_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1385,7 +1399,7 @@ def db_slack_feedback_add(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
-    #item = json.loads(json.dumps(item), parse_float=Decimal)
+    # item = json.loads(json.dumps(item), parse_float=Decimal)
 
     response = table.update_item(
         Key={
