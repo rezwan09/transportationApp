@@ -1272,7 +1272,8 @@ def db_slack_add_trip(item):
         Item={
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
-            'email': str(item.get("email")),
+            'user_name': str(item.get("user_name")),
+            'schedule_name': item.get("schedule_name"),
             'src_address': item.get("src"),
             'dst_address': item.get("dst"),
             'medium': item.get("medium"),
@@ -1280,7 +1281,9 @@ def db_slack_add_trip(item):
             'suggested_start_time': item.get("suggested_start_time"),
             'estimated_duration': item.get("estimated_duration"),
             'update_time': time_now().strftime("%Y-%m-%d %H:%M:%S"),
-            'trip_feedback': item.get("trip_feedback")
+            'is_trip_reminder_sent': False,
+            'is_feedback_reminder_sent': False
+
         }
     )
     return response
@@ -1320,7 +1323,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "days_of_week, src_address, dst_address, medium"
+    pe = "user_name, schedule_name, days_of_week, src_address, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1331,6 +1334,8 @@ def db_slack_upcoming_trips(item):
     dates = [today_date, tomorrow_date]
     for dt in dates:
         for row in rows:
+            user_name = row['user_name']
+            schedule_name = row['schedule_name']
             src = row['src_address']
             dst = row['dst_address']
             medium = row['medium']
@@ -1339,6 +1344,8 @@ def db_slack_upcoming_trips(item):
             print("The day = ", dt.strftime("%Y-%m-%d"), day_name)
             times = days_of_week.get(day_name)
             data['user_id'] = user_id
+            data['user_name'] = user_name
+            data['schedule_name'] = schedule_name
             data['src'] = src
             data['dst'] = dst
             data['medium'] = medium
@@ -1398,8 +1405,6 @@ def db_slack_feedback_add(item):
     table_name = "slack_trip"
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
-
-    # item = json.loads(json.dumps(item), parse_float=Decimal)
 
     response = table.update_item(
         Key={
