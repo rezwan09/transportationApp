@@ -572,14 +572,12 @@ def filter_events(events,src,dst):
     to_date(date): the end date to filter by (Default tomorrow's date)
     '''
     center, radius = draw_circle(src,dst)
-    print("circle center (%f,%f), radius %f" % (center[0],center[1], radius))
     close_events = []
     for event in events["features"]:
         coords = event["geometry"]["coordinates"]
         for coord in coords:
             if in_circle((coord[1],coord[0]),center,radius):
                 close_events.append(event)
-                break
             
     return close_events
 
@@ -595,7 +593,8 @@ def filter_incidents(events,src,dst):
     close_events = []
     for event in events["features"]:
         coords = event["geometry"]["coordinates"]
-        if type(coords[0]) == float:
+        if not isinstance(coords[0], list): #if 1d array
+            print("lat"+ str(coords[1]) + "lon" + str(coords[0]))
             if in_circle((coords[1],coords[0]),center,radius):
                 close_events.append(event)
         else:
@@ -604,6 +603,7 @@ def filter_incidents(events,src,dst):
                     continue
                 if in_circle((coord[1],coord[0]),center,radius):
                     close_events.append(event)
+                    break
                     
     return close_events
 
