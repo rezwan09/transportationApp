@@ -115,7 +115,7 @@ def get_departure_time(source,destination,preferred_arrival_time):
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
     
-def get_info(src,dst,to_date=None,types=["plannedEvents","incidents","roadConditions","weatherStations"]):
+def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations"]):
     '''
     Returns the information points for the selected API type that resides between the src and destination
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -126,15 +126,20 @@ def get_info(src,dst,to_date=None,types=["plannedEvents","incidents","roadCondit
     '''
     
     info_dic = {}
+    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
     for type in types:
         if type == "plannedEvents":
-            info_dic[type] = get_plannedEvents(src,dst,to_date)
+            info_dic[type] = get_plannedEvents(src,dst,to_date,method,routes_points)
+            print("Planned Events: %d" % len(info_dic[type]))
         elif type == "incidents":
-            info_dic[type] = get_incidents(src,dst)
+            info_dic[type] = get_incidents(src,dst,method,routes_points)
+            print("Incidents: %d" % len(info_dic[type]))
         elif type == "roadConditions":
-            info_dic[type] = get_currentRoadConditions(src,dst)
+            info_dic[type] = get_currentRoadConditions(src,dst,method,routes_points)
+            print("Road Conditions: %d" % len(info_dic[type]))
         elif type == "weatherStations":
-            info_dic[type] = get_weatherStations(src,dst)
+            info_dic[type] = get_weatherStations(src,dst,method,routes_points)
+            print("Weather Stations: %d" % len(info_dic[type]))
         else:
             return info_dic
     #return 
@@ -567,7 +572,9 @@ def fetch(type):
     '''
     return requests.get("https://data.cotrip.org/api/v1/%s?apiKey=J2N7GKZ-37Q4XSB-HXDQKMJ-6EEQH88"%type).json()
 
-def filter_events(events,src,dst):
+##### FILTERING FUNCTIONS 
+
+def filter_events(events,src,dst,method="rect",all_points=None):
     '''
     Filters the events to be in a circle between src and dist
     events([dict]): The response from the cotrip API call
@@ -575,17 +582,19 @@ def filter_events(events,src,dst):
     dst((float,float))*: tuple of latitidue and longitude for the destination point
     to_date(date): the end date to filter by (Default tomorrow's date)
     '''
-    center, radius = draw_circle(src,dst)
+    
     close_events = []
     for event in events["features"]:
         coords = event["geometry"]["coordinates"]
         for coord in coords:
-            if in_circle((coord[1],coord[0]),center,radius):
+            point_isin = filter_point(src,dst,coord[1],coord[0],method,all_points)
+            # add if in
+            if point_isin:
                 close_events.append(event)
             
     return close_events
 
-def filter_incidents(events,src,dst):
+def filter_incidents(events,src,dst,method="rect",all_points=None):
     '''
     Filters the events to be in a circle between src and dist
     events([dict]): The response from the cotrip API call
@@ -593,25 +602,65 @@ def filter_incidents(events,src,dst):
     dst((float,float))*: tuple of latitidue and longitude for the destination point
     to_date(date): the end date to filter by (Default tomorrow's date)
     '''
-    center, radius = draw_circle(src,dst)
+    
     close_events = []
     for event in events["features"]:
         coords = event["geometry"]["coordinates"]
-        if not isinstance(coords[0], list): #if 1d array
-            print("lat"+ str(coords[1]) + "lon" + str(coords[0]))
-            if in_circle((coords[1],coords[0]),center,radius):
+        point_isin = False
+        
+        # if 1d array make 2d
+        if not isinstance(coords[0], list): 
+            coords = [coords]
+            
+        for coord in coords:
+            if len(coord) != 2:
+                continue
+            point_isin = filter_point(src,dst,coord[1],coord[0],method,all_points)
+            if point_isin:
                 close_events.append(event)
-        else:
-            for coord in coords:
-                if len(coord) != 2:
-                    continue
-                if in_circle((coord[1],coord[0]),center,radius):
-                    close_events.append(event)
-                    break
+                break
                     
     return close_events
 
-def get_plannedEvents(src,dst,to_date=None):
+def filter_roadConditions(res,src,dst,method="rect",all_points=None):
+    '''
+    Filters the road conditions to be in a circle between src and dist
+    res([dict]): The response from the cotrip API call
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    returns: a list of filtered road condition objects
+    '''
+    in_roads = []
+    rect = get_rectangel(src,dst,all_points)
+    
+    for road in res["features"]:
+        road["in_points"] = list(filter(lambda x: point_in_rect(rect,(x[1],x[0])),road["geometry"]["coordinates"]))
+        if len(road["in_points"]) > 0:
+            in_roads.append(road)
+        
+    return in_roads
+
+def filter_weatherStations(res,src,dst,method="rect",all_points=None):
+    '''
+    Filters the weather station points to be in a circle between src and dist
+    points([list(float,float)]): a list of points 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    returns: a list of filtered weather station points 
+    ''' 
+    return list(filter(lambda x: filter_point(src,dst,x["geometry"]["coordinates"][1],x["geometry"]["coordinates"][0],method,all_points),res["features"]))
+
+
+def filter_point(src,dst,lat,lon,method="rect",all_points=None):
+    if method == "rect":
+        rect = get_rectangel(src,dst,all_points) #for the rectange method
+        return point_in_rect(rect,(lat,lon))
+    else:
+        c,r = draw_circle(src,dst)
+        return in_circle((lat,lon),c,r)
+
+def get_plannedEvents(src,dst,to_date=None,method="rect",routes_points=None):
     '''
     Gets the planned events from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -620,8 +669,7 @@ def get_plannedEvents(src,dst,to_date=None):
     returns: a list of planned events json objects
     '''
     events = fetch("plannedEvents")
-    close_events = filter_events(events,src,dst)
-    print("in circle events %d" % len(close_events))
+    close_events = filter_events(events,src,dst,method,routes_points)
     
     #filter by date
     if to_date == None:
@@ -649,7 +697,7 @@ def get_plannedEvents(src,dst,to_date=None):
     #return plannedEvents
     return planned_events
 
-def get_incidents(src,dst):
+def get_incidents(src,dst,method="rect",routes_points=None):
     '''
     Gets the indidents from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -657,8 +705,7 @@ def get_incidents(src,dst):
     returns: a list of incident json objects
     '''
     events = fetch("incidents")
-    close_events = filter_incidents(events,src,dst)
-    print("in circle incidents %d" % len(close_events))
+    close_events = filter_incidents(events,src,dst,method,routes_points)
     
     if len(close_events) == 0:return [] # return if 0
     
@@ -685,40 +732,9 @@ def get_incidents(src,dst):
     
     #return plannedEvents
     return planned_events
-
-def filter_roadConditions(res,src,dst):
-    '''
-    Filters the road conditions to be in a circle between src and dist
-    res([dict]): The response from the cotrip API call
-    src((float,float))*: tuple of latitidue and longitude for the source point
-    dst((float,float))*: tuple of latitidue and longitude for the destination point
-    to_date(date): the end date to filter by (Default tomorrow's date)
-    returns: a list of filtered road condition objects
-    '''
-    in_roads = []
-    for road in res["features"]:
-        coords = road["geometry"]["coordinates"]
-        c,r = draw_circle(src,dst)
-        in_points = list(filter(lambda x: in_circle((x[1],x[0]),c,r),coords))
-        road["in_points"] = in_points
-        if len(in_points) > 0:
-            in_roads.append(road)
-    
-    return in_roads
-
-def filter_points(points,src,dst):
-    '''
-    Filters the points to be in a circle between src and dist
-    points([list(float,float)]): a list of points 
-    src((float,float))*: tuple of latitidue and longitude for the source point
-    dst((float,float))*: tuple of latitidue and longitude for the destination point
-    returns: a list of filtered road condition objects
-    '''
-    c,r = draw_circle(src,dst)
-    return list(filter(lambda x: in_circle(x,c,r),points))
     
 
-def get_currentRoadConditions(src,dst):
+def get_currentRoadConditions(src,dst,method="rect",routes_points=None):
     '''
     Gets the current road conditions from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -726,8 +742,7 @@ def get_currentRoadConditions(src,dst):
     returns: a list of road condition json objects
     '''
     res = fetch("roadConditions")
-    in_roads = filter_roadConditions(res,src,dst)
-    print("in circle conditions %d" % len(in_roads))
+    in_roads = filter_roadConditions(res,src,dst,method,routes_points)
         
     # construct return dictionary
     in_road_conditions = []
@@ -744,18 +759,7 @@ def get_currentRoadConditions(src,dst):
     #return plannedEvents
     return in_road_conditions
 
-def filter_weatherStations(res,src,dst):
-    '''
-    Filters the weather station points to be in a circle between src and dist
-    points([list(float,float)]): a list of points 
-    src((float,float))*: tuple of latitidue and longitude for the source point
-    dst((float,float))*: tuple of latitidue and longitude for the destination point
-    returns: a list of filtered weather station points 
-    '''
-    c,r = draw_circle(src,dst)
-    return list(filter(lambda x: in_circle((x["geometry"]["coordinates"][1],x["geometry"]["coordinates"][0]),c,r),res["features"]))
-
-def get_weatherStations(src,dst):
+def get_weatherStations(src,dst,method="rect",routes_points=None):
     '''
     Gets the weather information from source to destination (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -764,7 +768,7 @@ def get_weatherStations(src,dst):
     returns: a list of weather information json objects
     '''
     res = fetch("weatherStations")
-    filtered = filter_weatherStations(res,src,dst)
+    filtered = filter_weatherStations(res,src,dst,method,routes_points)
     in_stations = []
     for station in filtered:
         keys = ["min temperature","max temperature", "temperature","average wind speed","average wind direction","visibility","precipitation rate"]
@@ -783,3 +787,115 @@ def get_weatherStations(src,dst):
                         obj[key] = values[0]["currentReading"]
         in_stations.append(obj)
     return in_stations
+
+def get_all_possible_routes(lat_1,lon1,lat_2,lon_2):
+    """
+    It uses the gmaps library to get all the possible routes between the two points and then decodes the polylines for each route.
+    lat_1 (float): latitude for point 1
+    lon_1 (float): longitude for point 1
+    lat_2 (float): latitude for point 2
+    lat_2 (float): longitude for point 2
+    Returns (list): A list of all the decoded points for all the routes between the two locations.
+    """
+    dirs = gmaps.directions((lat_1,lon1),(lat_2,lon_2), alternatives=True)
+    all_points = []
+    for dir in dirs:
+        poly = dir["overview_polyline"]["points"]
+        points = polyline.decode(poly) 
+        all_points = all_points + points
+    
+    return all_points
+
+def in_rect(lat,lon,bl,tr):
+    """
+    Checks if coordinates (lat,long) are inside a rectangle defined by bottom left (bl) and top right (tr) corners.    
+    lat: float
+        Latitude coordinate of the point.
+    lon: float
+        Longitude coordinate of the point.
+    bl: (float, float)
+        Tuple containing bottom left coordinates of the rectangle.
+    tr: (float, float)
+        Tuple containing top right coordinates of the rectangle.
+    
+    Returns
+    -------
+    bool
+        True if point (lat,long) is inside the rectangle, False otherwise.
+    """
+    
+    return lon >= bl[0] and lon <= tr[0] and lat <= tr[1] and lat >= bl[1]
+
+def point_in_rect(rect,point):
+    '''
+    rect([(float,float)x4]): [top_left,top_right,bottom_right,bottom_left]
+    point([float,float]): lat, lon
+    returns(Bool): True/False
+    '''
+    lat = point[0]
+    lon = point[1]
+    bl = rect[-1]
+    tr = rect[1]
+    
+    return in_rect(lat,lon,bl,tr)
+
+def line_intersect_rect(rect,line):
+    for i,point in enumerate(rect):
+        next_point = rect[i+1 % len(rect)]
+        segment = [point,next_point]
+        if intersect(segment[0],segment[1],line[0],line[1]):
+            return True
+    return False
+
+def get_rectangel(src,dst,all_points=None,threshhold=50):
+    '''
+    src([float,float]): (Latituide, Longitude)
+    dst([float,float]): (Latituide, Longitude)
+    returns([(float,float)x4]): [top_left,top_right,bottom_right,bottom_left]
+    '''
+    #call gmaps
+    if all_points == None:
+        all_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
+        
+    #get points
+    top = max(all_points, key=lambda x:x[1])[1]
+    right = max(all_points, key=lambda x:x[0])[0]
+    bottom = min(all_points, key=lambda x:x[1])[1]
+    left = min(all_points, key=lambda x:x[0])[0]
+    
+    #make rect
+    rect = [(top,left),(top,right),(bottom,right),(bottom,left)]
+    
+    return rect
+
+# Return true if line segments AB and CD intersect
+def line_intersect_rect(rect,line):
+    '''
+    Checks if a line intersects a rectangle 
+    rect([(float,float)x4]): four points of the corners of the rectangle [(lat,lon)*4]
+    line([[float,float],[float,float]]): two points of the start and end of the line
+    returns (bool): True/False
+    '''
+    for i in range(len(rect)):
+        next_i = (i+1) % len(rect)
+        next_point = rect[next_i]
+        segment = [rect[i],next_point]
+        if intersect(segment[0],segment[1],line[0],line[1]):
+            return True
+    return False
+
+def intersect(A,B,C,D):
+    '''
+    Checks if line A-B intersects with line C-D
+    A([float,float]): (Latituide, Longitude)
+    B([float,float]): (Latituide, Longitude)
+    C([float,float]): (Latituide, Longitude)
+    D([float,float]): (Latituide, Longitude)
+    returns (bool): True/False
+    '''
+    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+
+#helping functions to find intersects (see intersects)
+def ccw(A,B,C):
+    return (C[0]-A[0]) * (B[1]-A[1]) > (B[0]-A[0]) * (C[1]-A[1])
+
