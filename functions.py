@@ -115,7 +115,7 @@ def get_departure_time(source,destination,preferred_arrival_time):
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
     
-def get_info(src,dst,to_date=None,types=["plannedEvents","incidents"]):
+def get_info(src,dst,to_date=None,types=["plannedEvents","incidents","roadConditions","weatherStations"]):
     '''
     Returns the information points for the selected API type that resides between the src and destination
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -128,9 +128,13 @@ def get_info(src,dst,to_date=None,types=["plannedEvents","incidents"]):
     info_dic = {}
     for type in types:
         if type == "plannedEvents":
-            info_dic[type] = get_planned_events(src,dst,to_date)
+            info_dic[type] = get_plannedEvents(src,dst,to_date)
         elif type == "incidents":
             info_dic[type] = get_incidents(src,dst)
+        elif type == "roadConditions":
+            info_dic[type] = get_currentRoadConditions(src,dst)
+        elif type == "weatherStations":
+            info_dic[type] = get_weatherStations(src,dst)
         else:
             return info_dic
     #return 
@@ -607,7 +611,7 @@ def filter_incidents(events,src,dst):
                     
     return close_events
 
-def get_planned_events(src,dst,to_date=None):
+def get_plannedEvents(src,dst,to_date=None):
     '''
     Gets the planned events from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -681,3 +685,101 @@ def get_incidents(src,dst):
     
     #return plannedEvents
     return planned_events
+
+def filter_roadConditions(res,src,dst):
+    '''
+    Filters the road conditions to be in a circle between src and dist
+    res([dict]): The response from the cotrip API call
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    returns: a list of filtered road condition objects
+    '''
+    in_roads = []
+    for road in res["features"]:
+        coords = road["geometry"]["coordinates"]
+        c,r = draw_circle(src,dst)
+        in_points = list(filter(lambda x: in_circle((x[1],x[0]),c,r),coords))
+        road["in_points"] = in_points
+        if len(in_points) > 0:
+            in_roads.append(road)
+    
+    return in_roads
+
+def filter_points(points,src,dst):
+    '''
+    Filters the points to be in a circle between src and dist
+    points([list(float,float)]): a list of points 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    returns: a list of filtered road condition objects
+    '''
+    c,r = draw_circle(src,dst)
+    return list(filter(lambda x: in_circle(x,c,r),points))
+    
+
+def get_currentRoadConditions(src,dst):
+    '''
+    Gets the current road conditions from source to destination 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    returns: a list of road condition json objects
+    '''
+    res = fetch("roadConditions")
+    in_roads = filter_roadConditions(res,src,dst)
+    print("in circle conditions %d" % len(in_roads))
+        
+    # construct return dictionary
+    in_road_conditions = []
+    for road in in_roads:
+        obj = dict(
+            route_name = road["properties"]["routeName"],
+            current_conditions = road["properties"]["currentConditions"],
+            in_points = road["in_points"]
+        )
+            
+        #add event to dictionary
+        in_road_conditions.append(obj)
+    
+    #return plannedEvents
+    return in_road_conditions
+
+def filter_weatherStations(res,src,dst):
+    '''
+    Filters the weather station points to be in a circle between src and dist
+    points([list(float,float)]): a list of points 
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    returns: a list of filtered weather station points 
+    '''
+    c,r = draw_circle(src,dst)
+    return list(filter(lambda x: in_circle((x["geometry"]["coordinates"][1],x["geometry"]["coordinates"][0]),c,r),res["features"]))
+
+def get_weatherStations(src,dst):
+    '''
+    Gets the weather information from source to destination (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    returns: a list of weather information json objects
+    '''
+    res = fetch("weatherStations")
+    filtered = filter_weatherStations(res,src,dst)
+    in_stations = []
+    for station in filtered:
+        keys = ["min temperature","max temperature", "temperature","average wind speed","average wind direction","visibility","precipitation rate"]
+        obj = dict(
+            lat=station["geometry"]["coordinates"][1],
+            lon=station["geometry"]["coordinates"][0]
+        )
+        for key in keys:
+            values = list(filter(lambda x: x["type"] == key,station["properties"]["sensors"]))
+            obj[key] = None
+            if len(values) > 0:
+                if "currentReading" in values[0]:
+                    try:
+                        obj[key] = float(values[0]["currentReading"])
+                    except ValueError:
+                        obj[key] = values[0]["currentReading"]
+        in_stations.append(obj)
+    return in_stations
