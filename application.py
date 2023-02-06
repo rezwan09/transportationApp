@@ -1296,6 +1296,8 @@ def db_slack_add_trip(item):
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
             'schedule_name': item.get("schedule_name"),
+            'src_name': item.get("src_name"),
+            'dst_name': item.get("dst_name"),
             'src_address': item.get("src"),
             'dst_address': item.get("dst"),
             'medium': item.get("medium"),
@@ -1343,7 +1345,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "user_name, schedule_name, days_of_week, src_address, dst_address, medium"
+    pe = "user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1356,6 +1358,8 @@ def db_slack_upcoming_trips(item):
         for row in rows:
             user_name = row['user_name']
             schedule_name = row['schedule_name']
+            src_name = row['src_name']
+            dst_name = row['dst_name']
             src = row['src_address']
             dst = row['dst_address']
             medium = row['medium']
@@ -1366,6 +1370,8 @@ def db_slack_upcoming_trips(item):
             data['user_id'] = user_id
             data['user_name'] = user_name
             data['schedule_name'] = schedule_name
+            data['src_name'] = src_name
+            data['dst_name'] = dst_name
             data['src'] = src
             data['dst'] = dst
             data['medium'] = medium
