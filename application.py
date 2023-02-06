@@ -1317,7 +1317,7 @@ def db_slack_get_trip(item):
     table = dynamodb.Table(table_name)
 
     # Get the item with the key
-    print(item.get("id"))
+    print("trip id = ", item.get("id"))
     response = table.get_item(
         Key={
             'id': str(item.get("id"))
@@ -1457,8 +1457,15 @@ def db_slack_settings_update(item):
 
 
 def db_slack_get_info(item):
-    src = item.get("src")
-    dst = item.get("dst")
+    trip_id = item.get("trip_id")
+    src, dst = None, None
+    response = None
+    # Get src and dst address from slack_trip table
+    trip_response = db_slack_get_trip({"id": trip_id})
+    if "Item" in trip_response:
+        resp_item = trip_response['Item']
+        src = resp_item.get("src_address")
+        dst = resp_item.get("dst_address")
     geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
