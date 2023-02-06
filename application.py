@@ -10,6 +10,7 @@ import googlemaps
 from boto3.dynamodb.conditions import Key, Attr
 
 import functions
+from geopy.geocoders import Nominatim
 
 application = app = Flask(__name__)
 
@@ -193,7 +194,7 @@ def get_emojis():
     return res
 
 
-############---For Slack---##########
+############---For Slack App---##########
 
 @app.route('/slack/schedule/add', methods=['POST'])
 def slack_schedule_add():
@@ -216,6 +217,13 @@ def slack_schedule_get_all():
     return res
 
 
+@app.route('/slack/trip/get', methods=['POST'])
+def slack_trip_get():
+    """ This will do insert or update"""
+    res = db_slack_get_trip(request.get_json())
+    return res
+
+
 @app.route('/slack/upcoming/trips', methods=['POST'])
 def slack_upcoming_trips():
     """ This will do insert or update"""
@@ -227,6 +235,20 @@ def slack_upcoming_trips():
 def slack_feedback_add():
     """ This will do insert or update"""
     res = db_slack_feedback_add(request.get_json())
+    return res
+
+
+@app.route('/slack/settings/update', methods=['POST'])
+def slack_settings_update():
+    """ This will do insert or update"""
+    res = db_slack_settings_update(request.get_json())
+    return res
+
+
+@app.route('/slack/info/get', methods=['POST'])
+def slack_get_info():
+    """ This will do insert or update"""
+    res = db_slack_get_info(request.get_json())
     return res
 
 
@@ -1289,22 +1311,20 @@ def db_slack_add_trip(item):
     return response
 
 
-"""def db_slack_get_meta_info():
-    # Fetch meta information (Trip time, Air quality and Road closure information)
+def db_slack_get_trip(item):
+    table_name = "slack_trip"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
 
-    #----
-    preferred_arrival = datetime.strptime(dtc, '%Y-%m-%d %H:%M:%S')
+    # Get the item with the key
+    print(item.get("id"))
+    response = table.get_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
 
-    if srcAddr and dstAddr and dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
-        print("Preffered arrival = ", preferred_arrival, " dtc = ", dtc)
-        res = functions.get_departure_time(srcAddr, dstAddr,
-                                           preferred_arrival)
-        data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
-        data['estimated_duration'] = res[1]
-        if data['suggested_start_time'] > time_now().strftime("%Y-%m-%d %H:%M:%S"):
-            addTrip = True
-        else:
-            addTrip = False"""
+    return response
 
 
 def db_slack_upcoming_trips(item):
@@ -1415,6 +1435,34 @@ def db_slack_feedback_add(item):
             ':trip_feedback': item.get("feedback")
         }
     )
+    return response
+
+
+def db_slack_settings_update(item):
+    table_name = "slack_settings"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.update_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        },
+        UpdateExpression='SET alert_time = :alert_time, alert_types = :alert_types',
+        ExpressionAttributeValues={
+            ':alert_time': item.get("alert_time"),
+            ':alert_types': item.get("alert_types")
+        }
+    )
+    return response
+
+
+def db_slack_get_info(item):
+    src = item.get("src")
+    dst = item.get("dst")
+    geolocator = Nominatim(user_agent="application")
+    src = geolocator.geocode(src)
+    dst = geolocator.geocode(dst)
+    response = functions.get_info((src.latitude, src.longitude), (dst.latitude, dst.longitude))
     return response
 
 
