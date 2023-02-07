@@ -238,6 +238,13 @@ def slack_feedback_add():
     return res
 
 
+@app.route('/slack/settings/get', methods=['POST'])
+def slack_settings_gets():
+    """ This will do insert or update"""
+    res = db_slack_settings_get(request.get_json())
+    return res
+
+
 @app.route('/slack/settings/update', methods=['POST'])
 def slack_settings_update():
     """ This will do insert or update"""
@@ -1444,6 +1451,19 @@ def db_slack_feedback_add(item):
     return response
 
 
+def db_slack_settings_get(item):
+    table_name = "slack_settings"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    return response
+
+
 def db_slack_settings_update(item):
     table_name = "slack_settings"
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -1453,9 +1473,10 @@ def db_slack_settings_update(item):
         Key={
             'user_id': str(item.get("user_id"))
         },
-        UpdateExpression='SET alert_time = :alert_time, alert_types = :alert_types',
+        UpdateExpression='SET minutes_before = :minutes_before, time_of_day = :time_of_day, alert_types = :alert_types',
         ExpressionAttributeValues={
-            ':alert_time': item.get("alert_time"),
+            ':minutes_before': item.get("minutes_before"),
+            ':time_of_day' : item.get("time_of_day"),
             ':alert_types': item.get("alert_types")
         }
     )
@@ -1472,9 +1493,11 @@ def db_slack_get_info(item):
         resp_item = trip_response['Item']
         src = resp_item.get("src_address")
         dst = resp_item.get("dst_address")
+
     geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
+    print("src = ", src, "dst = ", dst)
     response = functions.get_info((src.latitude, src.longitude), (dst.latitude, dst.longitude))
     return response
 
