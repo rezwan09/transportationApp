@@ -238,6 +238,13 @@ def slack_feedback_add():
     return res
 
 
+@app.route('/slack/settings/get', methods=['POST'])
+def slack_settings_gets():
+    """ This will do insert or update"""
+    res = db_slack_settings_get(request.get_json())
+    return res
+
+
 @app.route('/slack/settings/update', methods=['POST'])
 def slack_settings_update():
     """ This will do insert or update"""
@@ -1296,6 +1303,8 @@ def db_slack_add_trip(item):
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
             'schedule_name': item.get("schedule_name"),
+            'src_name': item.get("src_name"),
+            'dst_name': item.get("dst_name"),
             'src_address': item.get("src"),
             'dst_address': item.get("dst"),
             'medium': item.get("medium"),
@@ -1343,7 +1352,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "user_name, schedule_name, days_of_week, src_address, dst_address, medium"
+    pe = "user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1356,6 +1365,8 @@ def db_slack_upcoming_trips(item):
         for row in rows:
             user_name = row['user_name']
             schedule_name = row['schedule_name']
+            src_name = row['src_name']
+            dst_name = row['dst_name']
             src = row['src_address']
             dst = row['dst_address']
             medium = row['medium']
@@ -1366,6 +1377,8 @@ def db_slack_upcoming_trips(item):
             data['user_id'] = user_id
             data['user_name'] = user_name
             data['schedule_name'] = schedule_name
+            data['src_name'] = src_name
+            data['dst_name'] = dst_name
             data['src'] = src
             data['dst'] = dst
             data['medium'] = medium
@@ -1438,6 +1451,19 @@ def db_slack_feedback_add(item):
     return response
 
 
+def db_slack_settings_get(item):
+    table_name = "slack_settings"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    response = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    return response
+
+
 def db_slack_settings_update(item):
     table_name = "slack_settings"
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
@@ -1447,9 +1473,9 @@ def db_slack_settings_update(item):
         Key={
             'user_id': str(item.get("user_id"))
         },
-        UpdateExpression='SET alert_time = :alert_time, alert_types = :alert_types',
+        UpdateExpression='SET minutes_before = :minutes_before, alert_types = :alert_types',
         ExpressionAttributeValues={
-            ':alert_time': item.get("alert_time"),
+            ':minutes_before': item.get("minutes_before"),
             ':alert_types': item.get("alert_types")
         }
     )
@@ -1466,9 +1492,11 @@ def db_slack_get_info(item):
         resp_item = trip_response['Item']
         src = resp_item.get("src_address")
         dst = resp_item.get("dst_address")
+
     geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
+    print("src = ", src, "dst = ", dst)
     response = functions.get_info((src.latitude, src.longitude), (dst.latitude, dst.longitude))
     return response
 
