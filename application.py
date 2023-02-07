@@ -1476,7 +1476,6 @@ def db_slack_settings_update(item):
         UpdateExpression='SET minutes_before = :minutes_before, time_of_day = :time_of_day, alert_types = :alert_types',
         ExpressionAttributeValues={
             ':minutes_before': item.get("minutes_before"),
-            ':time_of_day' : item.get("time_of_day"),
             ':alert_types': item.get("alert_types")
         }
     )
