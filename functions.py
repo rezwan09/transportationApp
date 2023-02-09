@@ -115,13 +115,13 @@ def get_departure_time(source,destination,preferred_arrival_time):
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
     
-def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations"]):
+def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
     '''
     Returns the information points for the selected API type that resides between the src and destination
     src((float,float))*: tuple of latitidue and longitude for the source point
     dst((float,float))*: tuple of latitidue and longitude for the destination point
     to_date(date): the end date to filter by (Default tomorrow's date)
-    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","snowPlows"]
+    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]
     returns: a dictionary of list of each type
     '''
     
@@ -140,6 +140,9 @@ def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incident
         elif type == "weatherStations":
             info_dic[type] = get_weatherStations(src,dst,method,routes_points)
             print("Weather Stations: %d" % len(info_dic[type]))
+        elif type == "airQuality":
+            info_dic[type] = get_roadAirQuality(src,dst,routes_points)
+            print("Road Avg Quality: %d" % len(info_dic[type]["points"]))
         else:
             return info_dic
     #return 
@@ -666,6 +669,8 @@ def get_plannedEvents(src,dst,to_date=None,method="rect",routes_points=None):
     src((float,float))*: tuple of latitidue and longitude for the source point
     dst((float,float))*: tuple of latitidue and longitude for the destination point
     to_date(date): the end date to filter by (Default tomorrow's date)
+    method(str): the filteration method (rect/circle)
+    routes_points([(lat,lon)...]): a list of all roads points from source to destination
     returns: a list of planned events json objects
     '''
     events = fetch("plannedEvents")
@@ -702,6 +707,8 @@ def get_incidents(src,dst,method="rect",routes_points=None):
     Gets the indidents from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
     dst((float,float))*: tuple of latitidue and longitude for the destination point
+    method(str): the filteration method (rect/circle)
+    routes_points([(lat,lon)...]): a list of all roads points from source to destination
     returns: a list of incident json objects
     '''
     events = fetch("incidents")
@@ -739,6 +746,8 @@ def get_currentRoadConditions(src,dst,method="rect",routes_points=None):
     Gets the current road conditions from source to destination 
     src((float,float))*: tuple of latitidue and longitude for the source point
     dst((float,float))*: tuple of latitidue and longitude for the destination point
+    method(str): the filteration method (rect/circle)
+    routes_points([(lat,lon)...]): a list of all roads points from source to destination
     returns: a list of road condition json objects
     '''
     res = fetch("roadConditions")
@@ -764,7 +773,8 @@ def get_weatherStations(src,dst,method="rect",routes_points=None):
     Gets the weather information from source to destination (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
     src((float,float))*: tuple of latitidue and longitude for the source point
     dst((float,float))*: tuple of latitidue and longitude for the destination point
-    to_date(date): the end date to filter by (Default tomorrow's date)
+    method(str): the filteration method (rect/circle)
+    routes_points([(lat,lon)...]): a list of all roads points from source to destination
     returns: a list of weather information json objects
     '''
     res = fetch("weatherStations")
@@ -787,6 +797,78 @@ def get_weatherStations(src,dst,method="rect",routes_points=None):
                         obj[key] = values[0]["currentReading"]
         in_stations.append(obj)
     return in_stations
+
+def get_roadAirQuality(src,dst,routes_points=None,space_between_points=2000,max_points=25):
+    '''
+    Gets the road air quality
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    routes_points([(lat,lon)...]): a list of all roads points from source to destination
+    space_between_points(int): The space between each coordinate in the matrix
+    max_points(int): the maximum number of points to include in the matrix
+    returns: a dictionary of average air quality and a list of pm2.5 information for each coordniate
+    '''
+    #make matrix 
+    rect = get_rectangel(src,dst,routes_points,lat_first=True)
+    matrix = get_matrix(rect,space_between_points,max_points)
+    (base,api_key) = breez_base_key()
+
+    #call for each point
+    responses = []
+    for p in matrix:
+        (lat,lon) = p    
+        api = "current-conditions?lat=%f&lon=%f&features=pollutants_concentrations&key=%s" % (lat,lon,api_key)
+        res = requests.get(base+api).json()    
+        pm = res["data"]["pollutants"]["pm25"]["concentration"]["value"]
+        responses.append(dict(
+            lat = lat,
+            lon = lon,
+            pm = pm,
+            full_res = res
+        ))
+    
+    avg_air = average(list(map(lambda x: x["pm"],responses)))
+    
+    air_q_dict = dict(
+        avg_air_quality = avg_air,
+        points = responses
+    )
+    
+    return air_q_dict
+
+def get_matrix(rect,space=2000, max_points=25):
+
+    #make the matrix 
+    points_steps = int(sqrt(max_points))
+    
+    #right col
+    right_points = rect[:2]
+    spaced_col_r = numpy.linspace(right_points[0],right_points[1],points_steps)
+
+    #left col
+    left_points = rect[2:]
+    spaced_col_l = numpy.linspace(left_points[1],left_points[0],points_steps)
+
+    matrix = []
+    for i in range(len(spaced_col_r)):
+        
+        row = list(numpy.linspace(spaced_col_r[i],spaced_col_l[i],points_steps))
+        matrix += row
+    
+    #space the matrix
+    spaced_matrix= []
+    spaced_matrix.append(matrix[0])
+    for p in matrix[1:]:
+        far = True
+        for sp in spaced_matrix:
+            dist = geopy.distance.geodesic(sp, p).m
+            if dist < space:
+                far = False
+                break
+        if far:
+            spaced_matrix.append(p)
+        
+    return spaced_matrix
 
 def get_all_possible_routes(lat_1,lon1,lat_2,lon_2):
     """
@@ -847,7 +929,7 @@ def line_intersect_rect(rect,line):
             return True
     return False
 
-def get_rectangel(src,dst,all_points=None,threshhold=50):
+def get_rectangel(src,dst,all_points=None,threshhold=50,lat_first=False):
     '''
     src([float,float]): (Latituide, Longitude)
     dst([float,float]): (Latituide, Longitude)
@@ -865,6 +947,9 @@ def get_rectangel(src,dst,all_points=None,threshhold=50):
     
     #make rect
     rect = [(top,left),(top,right),(bottom,right),(bottom,left)]
+    
+    if lat_first:
+        rect = [(left,top),(right,top),(right,bottom),(left,bottom)]
     
     return rect
 
