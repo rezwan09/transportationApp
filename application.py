@@ -1258,6 +1258,11 @@ def db_slack_schedule_add(item):
         }
     )
     response['id'] = new_id
+
+    # But also generate trips for today and tomorrow
+    user_id = str(item.get("user_id"))
+    today = "today"
+    db_slack_upcoming_trips({"user_id":user_id, "day":today})
     return response
 
 
@@ -1431,6 +1436,11 @@ def db_slack_upcoming_trips(item):
     response = trip_table.scan(
         FilterExpression=fe
     )
+
+    # Sort trips by scheduled_arrival time
+    items = response["Items"]
+    items.sort(key=lambda x: x.get("suggested_start_time"))
+    response["Items"] = items
     return response
 
 
