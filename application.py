@@ -1437,7 +1437,7 @@ def db_slack_upcoming_trips(item):
         FilterExpression=fe
     )
 
-    # Sort trips by scheduled_arrival time
+    # Sort the trips by scheduled_arrival time
     items = response["Items"]
     items.sort(key=lambda x: x.get("suggested_start_time"))
     response["Items"] = items
