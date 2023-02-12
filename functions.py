@@ -1,7 +1,7 @@
 from operator import le
 from unittest import mock
 import requests
-import numpy
+import numpy as np
 from typing import List
 import polyline
 from math import sin, cos, sqrt, atan2, radians
@@ -118,134 +118,77 @@ def get_departure_time(source,destination,preferred_arrival_time):
     
     #TODO: We still need to provide the preferred route, add the mode of transportation
     
-def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
+def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
     '''
-    Returns the information points for the selected API type that resides between the src and destination
-    src((float,float))*: tuple of latitidue and longitude for the source point
-    dst((float,float))*: tuple of latitidue and longitude for the destination point
-    to_date(date): the end date to filter by (Default tomorrow's date)
-    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]
-    returns: a dictionary of list of each type
-    '''
+    Gets the info needed to generate the slack message to the user
     
-    info_dic = {}
-    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
-    for type in types:
-        if type == "plannedEvents":
-            info_dic[type] = get_plannedEvents(src,dst,to_date,method,routes_points)
-            print("Planned Events: %d" % len(info_dic[type]))
-        elif type == "incidents":
-            info_dic[type] = get_incidents(src,dst,method,routes_points)
-            print("Incidents: %d" % len(info_dic[type]))
-        elif type == "roadConditions":
-            info_dic[type] = get_currentRoadConditions(src,dst,method,routes_points)
-            print("Road Conditions: %d" % len(info_dic[type]))
-        elif type == "weatherStations":
-            info_dic[type] = get_weatherStations(src,dst,method,routes_points)
-            print("Weather Stations: %d" % len(info_dic[type]))
-        elif type == "airQuality":
-            info_dic[type] = get_roadAirQuality(src,dst,routes_points)
-            print("Road Avg Quality: %d" % len(info_dic[type]["points"]))
-        else:
-            return info_dic
-    #return 
-    return info_dic
-
-
-def generate_map_image(src,dst,routes_points,airQuality_info,plannedEvents_info,incidents_info, filepath=None):
-    '''
+    Params:
     src((float,float)): latitude and longitude of the source
     dst((float,float)): latitude and longitude of the destination
-    routes_points([(float,float)...]): list of points of the all possible routes from src to dst
-    airQuality_info(dict): a dictionary of the airQuality_info from get_info["airQuality"]
-    plannedEvents_info(dict): a dictionary of the plannedEvents_info from get_info["plannedEvents"]
-    incidents_info(dict): a dictionary of the incidents_info from get_info["incidents"]
-    filepath(str) optional: saves the image to the specified filepath
-    returns(bytes): returns the bytes of the image 
+    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]
+    
+    Returns (dict):
+    a dictionary of the info needed to formate the slack message
+    -   Avg air quality 
+    -   Air Quality Label from 
+    -   Road condition {"road_name":"condition"}
+    -   Avg temperatur
+    -   Temperature face from (https://www.pinterest.com/pin/232990980697006763/)
+    -   Min temperature 
+    -   Max temperature 
+    -   Wind speed
+    -   Wind direction
+    -   Visibility
+    -   Image Bytes
     '''
-    import plotly.graph_objects as go
-    import plotly.express as px
-    px.set_mapbox_access_token(plotly_key)
     
-
-    #coords
-    lats = [src[0],dst[0]]
-    lons = [src[1],dst[1]]
-
-    #zoom function
-    zoom, center = zoom_center(lons=lons,lats=lats)
-
-    #main fig (air)
-    main_fig = px.density_mapbox(airQuality_info,
-                                lat="lat",lon="lon",z="pm", 
-                                color_continuous_scale=["purple","purple","purple"],
-                                zoom=zoom-1.5,center=center, radius=zoom*8,
-                                height=500, width=800)
-
-    #add srs/dst
-    main_fig.add_scattermapbox(lat=lats,
-                            lon=lons,
-                            mode = "text+markers",
-                            text=["Source","Destination"],
-                            textposition="bottom center",
-                            marker={'size': 8,'symbol': ["marker","marker"], 'allowoverlap':True},
-                            showlegend=False,
-                            textfont=dict(
-                                size=8,
-                                color="white"
-                            ))
-
-    #add roads
-    main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
-                            lon=list(map(lambda x: x[1],routes_points)),
-                            mode = "markers",
-                            marker={'size': 4, 'color': 'lightblue', 'allowoverlap': True},
-                            showlegend=False,
-                            )
-
-
-    # #add events
-    for event in plannedEvents_info:
-        main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],event["points"])),
-                                lon=list(map(lambda x: x[0],event["points"])),
-                                mode = "text+markers",
-                                marker={'size': 8,'color': 'yellow', 'allowoverlap': True},
-                                showlegend=False,
-                                textfont=dict(
-                                    size=8,
-                                    color="yellow"),
-                                text="construction",
-                                textposition="bottom center",
-                                )
-
-    # #add incidents
-    for inc in incidents_info:
-        main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],inc["points"])),
-                                lon=list(map(lambda x: x[1],inc["points"])),
-                                mode = "text+markers",
-                                marker={'size': 8,'color':'red','allowoverlap':True},
-                                showlegend=False,
-                                text="Incident",
-                                textposition="bottom center",
-                                textfont=dict(
-                                    size=8,
-                                    color="red")
-                                )
-
-    #figure layout
-    main_fig.update_layout(coloraxis_showscale=False, 
-                        mapbox=dict(style='satellite'),
-                        margin=dict(l=4, r=4, t=4, b=4))
-
-    #store locally
-    if filepath != None:
-            main_fig.write_image(filepath)
+    #get all requested info
+    if info_object == None:
+        info_object = get_info(src,dst,types=types)
     
-    #generate bytes
-    img_bytes = main_fig.to_image(format="png")
+    #empty object to prep
+    return_object = dict()
     
-    return img_bytes
-
+    # -   Avg air quality / label 
+    if "airQuality" in info_object:
+        avg_aq = info_object["airQuality"]["avg_air_quality"]
+        return_object["avg_air_quality"] = avg_aq
+        return_object["air_qualit_label"] = get_air_quality_label(float(avg_aq))
+    
+    # -   Roads condition
+    if "roadConditions" in info_object:
+        road_conditions = {}
+        for road in info_object["roadConditions"]:
+            road_name = road["route_name"]
+            curren_conds = road["current_conditions"]
+            if len(curren_conds) > 0:
+                whole_word = curren_conds[0]["conditionDescription"]
+                if "-" in whole_word:
+                    cond_label = whole_word[whole_word.find("-")+1:]
+                    road_conditions[road_name] = cond_label
+        return_object["road_conditions"] = road_conditions
+    
+    # -   Avg temperature
+    # -   Min temperature 
+    # -   Max temperature 
+    # -   Wind speed
+    # -   Wind direction
+    # -   Visibility
+    if "weatherStations" in info_object:
+        ws = info_object["weatherStations"]
+        return_object["temperature"] = ws["temperature"]
+        return_object["min_temperature"] = ws["min temperature"]
+        return_object["max_temperature"] = ws["max temperature"]
+        return_object["avg_wind_speed"] = ws["average wind speed"]
+        return_object["avg_wind_direction"] = ws["average wind direction"]
+        return_object["visibility"] = ws["visibility"]
+        
+    # -   Image Bytes
+    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
+    image_bytes = generate_map_image(src,dst,routes_points,info_object["airQuality"]["points"],info_object["plannedEvents"],info_object["incidents"])
+    return_object["image_bytes"] = image_bytes
+    
+    return return_object
 
 
 #################################################### HELPING METHODS ########################################################
@@ -477,8 +420,8 @@ def distance_in_meters(p1,p2):
     return distance * 1000
 
 def getEquidistantPoints(p1, p2, parts):
-    return zip(numpy.linspace(p1[0], p2[0], parts+1),
-               numpy.linspace(p1[1], p2[1], parts+1))
+    return zip(np.linspace(p1[0], p2[0], parts+1),
+               np.linspace(p1[1], p2[1], parts+1))
     
 def draw_routes(routes:List[Route],reported_points=[]):
     
@@ -537,10 +480,10 @@ def is_point_on_rout(point,route:Route):
     return on_path
 
 def get_searchable_waypoints(orignin_x,origin_y,n=100): 
-    angle = numpy.linspace(0,8*2*numpy.pi, n)
-    radius = numpy.linspace(0.000002,0.02,n)
-    wp_x = radius * numpy.cos(angle) + orignin_x
-    wp_y = radius * numpy.sin(angle) + origin_y
+    angle = np.linspace(0,8*2*np.pi, n)
+    radius = np.linspace(0.000002,0.02,n)
+    wp_x = radius * np.cos(angle) + orignin_x
+    wp_y = radius * np.sin(angle) + origin_y
     
     return (wp_x,wp_y)
 
@@ -816,11 +759,12 @@ def get_incidents(src,dst,method="rect",routes_points=None):
     
     #filter cleared 
     filtered_events = list(filter(lambda x: x["properties"]["status"] != "event cleared" , close_events))
+    
     if len(filtered_events) == 0:return [] # return if 0
     
     # construct return dictionary
     planned_events = []
-    for event in events["features"]:
+    for event in filtered_events:
         text = event["properties"]["travelerInformationMessage"]
         start_date = event["properties"]["startTime"]
         points = []
@@ -866,7 +810,10 @@ def get_currentRoadConditions(src,dst,method="rect",routes_points=None):
     #return plannedEvents
     return in_road_conditions
 
-def get_weatherStations(src,dst,method="rect",routes_points=None):
+def sort_by_closest(point,x):
+    return geopy.distance.geodesic(point,[x[1],x[0]]).m
+
+def get_weatherStations(src):
     '''
     Gets the weather information from source to destination (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -876,15 +823,15 @@ def get_weatherStations(src,dst,method="rect",routes_points=None):
     returns: a list of weather information json objects
     '''
     res = fetch("weatherStations")
-    filtered = filter_weatherStations(res,src,dst,method,routes_points)
-    in_stations = []
-    for station in filtered:
-        keys = ["min temperature","max temperature", "temperature","average wind speed","average wind direction","visibility","precipitation rate"]
-        obj = dict(
-            lat=station["geometry"]["coordinates"][1],
-            lon=station["geometry"]["coordinates"][0]
-        )
-        for key in keys:
+    weather_stations = res["features"]
+    ws_geo = list(filter(lambda x: "geometry" in x,weather_stations))
+    ws_sorted = sorted(ws_geo, key=lambda x: sort_by_closest(src,x["geometry"]["coordinates"])) 
+    
+    keys = ["min temperature","max temperature", "temperature","average wind speed","average wind direction","visibility","precipitation rate"]
+    obj = dict()
+    
+    for key in keys:
+        for station in ws_sorted:
             values = list(filter(lambda x: x["type"] == key,station["properties"]["sensors"]))
             obj[key] = None
             if len(values) > 0:
@@ -892,9 +839,13 @@ def get_weatherStations(src,dst,method="rect",routes_points=None):
                     try:
                         obj[key] = float(values[0]["currentReading"])
                     except ValueError:
-                        obj[key] = values[0]["currentReading"]
-        in_stations.append(obj)
-    return in_stations
+                        obj[key] = values[0]["currentReading"]   
+                    
+                    #value fouhnd in this station
+                    break
+        
+    return obj
+
 
 def get_roadAirQuality(src,dst,routes_points=None,space_between_points=2000,max_points=25):
     '''
@@ -941,16 +892,16 @@ def get_matrix(rect,space=2000, max_points=25):
     
     #right col
     right_points = rect[:2]
-    spaced_col_r = numpy.linspace(right_points[0],right_points[1],points_steps)
+    spaced_col_r = np.linspace(right_points[0],right_points[1],points_steps)
 
     #left col
     left_points = rect[2:]
-    spaced_col_l = numpy.linspace(left_points[1],left_points[0],points_steps)
+    spaced_col_l = np.linspace(left_points[1],left_points[0],points_steps)
 
     matrix = []
     for i in range(len(spaced_col_r)):
         
-        row = list(numpy.linspace(spaced_col_r[i],spaced_col_l[i],points_steps))
+        row = list(np.linspace(spaced_col_r[i],spaced_col_l[i],points_steps))
         matrix += row
     
     #space the matrix
@@ -1148,3 +1099,149 @@ def zoom_center(lons: tuple=None, lats: tuple=None, lonlats: tuple=None,
         )
     
     return zoom, center
+
+def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
+    '''
+    Returns the information points for the selected API type that resides between the src and destination
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    dst((float,float))*: tuple of latitidue and longitude for the destination point
+    to_date(date): the end date to filter by (Default tomorrow's date)
+    types([str]): a list of the event type to be returned from the following strings ["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]
+    returns: a dictionary of list of each type
+    '''
+    
+    info_dic = {}
+    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
+    for type in types:
+        if type == "plannedEvents":
+            info_dic[type] = get_plannedEvents(src,dst,to_date,method,routes_points)
+            print("Planned Events: %d" % len(info_dic[type]))
+        elif type == "incidents":
+            info_dic[type] = get_incidents(src,dst,method,routes_points)
+            print("Incidents: %d" % len(info_dic[type]))
+        elif type == "roadConditions":
+            info_dic[type] = get_currentRoadConditions(src,dst,method,routes_points)
+            print("Road Conditions: %d" % len(info_dic[type]))
+        elif type == "weatherStations":
+            info_dic[type] = get_weatherStations(src)
+            print("Weather Stations: %d" % len(info_dic[type]))
+        elif type == "airQuality":
+            info_dic[type] = get_roadAirQuality(src,dst,routes_points)
+            print("Road Avg Quality: %d" % len(info_dic[type]["points"]))
+        else:
+            return info_dic
+    #return 
+    return info_dic
+
+
+def generate_map_image(src,dst,routes_points,airQuality_info,plannedEvents_info,incidents_info, filepath=None):
+    '''
+    src((float,float)): latitude and longitude of the source
+    dst((float,float)): latitude and longitude of the destination
+    routes_points([(float,float)...]): list of points of the all possible routes from src to dst
+    airQuality_info(dict): a dictionary of the airQuality_info from get_info["airQuality"]
+    plannedEvents_info(dict): a dictionary of the plannedEvents_info from get_info["plannedEvents"]
+    incidents_info(dict): a dictionary of the incidents_info from get_info["incidents"]
+    filepath(str) optional: saves the image to the specified filepath
+    returns(bytes): returns the bytes of the image 
+    '''
+    import plotly.graph_objects as go
+    import plotly.express as px
+    px.set_mapbox_access_token(plotly_key)
+
+    #coords
+    lats = [src[0],dst[0]]
+    lons = [src[1],dst[1]]
+
+    #zoom function
+    zoom, center = zoom_center(lons=lons,lats=lats)
+
+    #main fig (air)
+    main_fig = px.density_mapbox(airQuality_info,
+                                lat="lat",lon="lon",z="pm",
+                                color_continuous_scale=["purple","purple","purple"],
+                                zoom=zoom-1.5,center=center, radius=zoom*8,
+                                height=500, width=800)
+
+
+    #add roads
+    main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
+                            lon=list(map(lambda x: x[1],routes_points)),
+                            mode = "markers",
+                            marker={'size': 4, 'color': 'blue', 'allowoverlap': True},
+                            showlegend=False,
+                            )
+
+
+    # #add events
+    for event in plannedEvents_info:
+        main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],event["points"])),
+                                lon=list(map(lambda x: x[0],event["points"])),
+                                mode = "markers",
+                                marker={'size': 12,'color': 'yellow', 'allowoverlap': True},
+                                showlegend=False,
+                                textfont=dict(
+                                    size=8,
+                                    color="yellow"),
+                                text="construction",
+                                textposition="bottom center",
+                                )
+
+    # #add incidents
+    for inc in incidents_info:
+        main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],inc["points"])),
+                                lon=list(map(lambda x: x[0],inc["points"])),
+                                mode = "markers",
+                                marker={'size': 12,'color':'red','allowoverlap':True},
+                                showlegend=False,
+                                text="Incident",
+                                textposition="bottom center",
+                                textfont=dict(
+                                    size=8,
+                                    color="red")
+                                )
+
+    #add srs/dst
+    main_fig.add_scattermapbox(lat=lats,
+                            lon=lons,
+                            mode = "text+markers",
+                            text=["Source","Destination"],
+                            textposition="bottom center",
+                            marker={'size': 8,'symbol': ["marker","marker"], 'allowoverlap':True},
+                            showlegend=False,
+                            textfont=dict(
+                                size=16,
+                                color="white"
+                            ))
+    
+    #figure layout
+    main_fig.update_layout(coloraxis_showscale=False, 
+                        mapbox=dict(style='satellite'),
+                        margin=dict(l=4, r=4, t=4, b=4))
+
+    #store locally
+    if filepath != None:
+            main_fig.write_image(filepath)
+    
+    #generate bytes
+    img_bytes = main_fig.to_image(format="png")
+    
+    return img_bytes
+
+def get_air_quality_label(pm25_value:float):
+    '''
+    Returns if air quality is Good/Fair/Poor/Very Poor/Exremely Poor based pm25 level (www.epa.vic.gov.au)
+    pm25_value(float): value of pm25
+    returns(str): Good/Fair/Poor/Very Poor/Exremely Poor
+    '''
+
+    if pm25_value < 25:
+        return "Good"
+    elif pm25_value < 50:
+        return "Fair"
+    elif pm25_value < 100:
+        return "Poor"
+    elif pm25_value < 300:
+        return "Very Poor"
+    else:
+        return "Exremely Poor"
