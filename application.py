@@ -203,6 +203,13 @@ def slack_schedule_add():
     return res
 
 
+@app.route('/slack/schedule/get', methods=['POST'])
+def slack_schedule_get():
+    """ This will do insert or update"""
+    res = db_slack_schedule_get(request.get_json())
+    return res
+
+
 @app.route('/slack/schedule/delete', methods=['POST'])
 def slack_schedule_delete():
     """ This will do insert or update"""
@@ -1277,6 +1284,21 @@ def db_slack_schedule_delete(item):
     return response
 
 
+def db_slack_schedule_get(item):
+    table_name = "slack_planned_trips"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    # Get the item with the key
+    print("schedule id = ", item.get("id"))
+    response = table.get_item(
+        Key={
+            'id': str(item.get("id"))
+        }
+    )
+    return response
+
+
 def db_slack_schedule_get_all(item):
     table_name = "slack_planned_trips"
     dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
@@ -1479,15 +1501,23 @@ def db_slack_settings_update(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
+    update_expr = "SET "
+    exp_attr_val = {}
+    if item.get("minutes_before"):
+        update_expr = update_expr + "minutes_before = :minutes_before, "
+        exp_attr_val[':minutes_before'] = item.get("minutes_before")
+    if item.get("alert_types"):
+        update_expr = update_expr + "alert_types = :alert_types, "
+        exp_attr_val[':alert_types'] = item.get("alert_types")
+
+    update_expr = update_expr[:-2]
+
     response = table.update_item(
         Key={
             'user_id': str(item.get("user_id"))
         },
-        UpdateExpression='SET minutes_before = :minutes_before, alert_types = :alert_types',
-        ExpressionAttributeValues={
-            ':minutes_before': item.get("minutes_before"),
-            ':alert_types': item.get("alert_types")
-        }
+        UpdateExpression=update_expr,
+        ExpressionAttributeValues=exp_attr_val
     )
     return response
 
@@ -1507,7 +1537,7 @@ def db_slack_get_info(item):
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
     print("src = ", src, "dst = ", dst)
-    response = functions.get_info((src.latitude, src.longitude), (dst.latitude, dst.longitude))
+    response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude))
     return response
 
 
