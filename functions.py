@@ -186,7 +186,8 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
     # -   Image Bytes
     routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
     image_bytes = generate_map_image(src,dst,routes_points,info_object["airQuality"]["points"],info_object["plannedEvents"],info_object["incidents"])
-    return_object["image_bytes"] = image_bytes
+    return_object["image_bytes"] = str(image_bytes)
+
     
     return return_object
 
