@@ -1550,7 +1550,7 @@ def db_slack_get_info(item):
     filepath = "images/"+"map_"+str(trip_id)+".jpg"
     response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude), None, types, filepath)
     base = "http://54.221.174.61/"
-    response["image_bytes"] = base + filepath
+    response["image_path"] = base + filepath
     # Save the image to server space and send the link to response object
     """s3 = boto3.client('s3')
     b = base64.b64encode(response["image_bytes"])
