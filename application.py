@@ -11,6 +11,9 @@ from boto3.dynamodb.conditions import Key, Attr
 
 import functions
 from geopy.geocoders import Nominatim
+import PIL.Image as Image
+import io
+import base64
 
 application = app = Flask(__name__)
 
@@ -1524,7 +1527,7 @@ def db_slack_settings_update(item):
 
 def db_slack_get_info(item):
     trip_id = item.get("trip_id")
-    src, dst = None, None
+    src, dst, user_id = None, None, None
     response = None
     # Get src and dst address from slack_trip table
     trip_response = db_slack_get_trip({"id": trip_id})
@@ -1532,12 +1535,28 @@ def db_slack_get_info(item):
         resp_item = trip_response['Item']
         src = resp_item.get("src_address")
         dst = resp_item.get("dst_address")
+        user_id = resp_item.get("user_id")
+    settings_response = db_slack_settings_get({"user_id": user_id})
+    if "Item" in settings_response:
+        resp_item = settings_response['Item']
+        types = resp_item.get("alert_types")
 
+    # For now use all alert types
+    types = ["plannedEvents", "incidents", "roadConditions", "weatherStations", "airQuality"]
     geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
-    print("src = ", src, "dst = ", dst)
-    response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude))
+    print("src = ", src, " dst = ", dst, " types = ", types)
+    filepath = "images/"+"map_"+str(trip_id)+".jpg"
+    response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude), None, types, filepath)
+    base = "http://54.221.174.61/"
+    response["image_bytes"] = base + filepath
+    # Save the image to server space and send the link to response object
+    """s3 = boto3.client('s3')
+    b = base64.b64encode(response["image_bytes"])
+    img = Image.open(response["image_bytes"])
+    img.show()
+    img.save("new-image.jpg") """
     return response
 
 
