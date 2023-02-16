@@ -11,6 +11,7 @@ from boto3.dynamodb.conditions import Key, Attr
 
 import functions
 from geopy.geocoders import Nominatim
+import os
 import PIL.Image as Image
 import io
 import base64
@@ -264,8 +265,15 @@ def slack_settings_update():
 
 @app.route('/slack/info/get', methods=['POST'])
 def slack_get_info():
-    """ This will do insert or update"""
+    """ This will fetch data"""
     res = db_slack_get_info(request.get_json())
+    return res
+
+
+@app.route('/images/<file_name>', methods=['GET'])
+def slack_get_image(file_name):
+    """ This will fetch image"""
+    res = db_slack_get_image(file_name)
     return res
 
 
@@ -1257,6 +1265,7 @@ def db_slack_schedule_add(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
+            'first_name': str(item.get("first_name")),
             'schedule_name': item.get("schedule_name"),
             'src_name': item.get("src_name"),
             'src_address': item.get("src_address"),
@@ -1332,6 +1341,7 @@ def db_slack_add_trip(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
+            'first_name': str(item.get("first_name")),
             'schedule_name': item.get("schedule_name"),
             'src_name': item.get("src_name"),
             'dst_name': item.get("dst_name"),
@@ -1382,7 +1392,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
+    pe = "user_name, first_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1394,6 +1404,7 @@ def db_slack_upcoming_trips(item):
     for dt in dates:
         for row in rows:
             user_name = row['user_name']
+            first_name = row['first_name']
             schedule_name = row['schedule_name']
             src_name = row['src_name']
             dst_name = row['dst_name']
@@ -1406,6 +1417,7 @@ def db_slack_upcoming_trips(item):
             times = days_of_week.get(day_name)
             data['user_id'] = user_id
             data['user_name'] = user_name
+            data['first_name'] = first_name
             data['schedule_name'] = schedule_name
             data['src_name'] = src_name
             data['dst_name'] = dst_name
@@ -1547,17 +1559,27 @@ def db_slack_get_info(item):
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
     print("src = ", src, " dst = ", dst, " types = ", types)
-    filepath = "images/"+"map_"+str(trip_id)+".jpg"
+    filepath = "images/"+"map_"+str(trip_id)+".png"
     response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude), None, types, filepath)
-    base = "http://54.221.174.61/"
+    base = "https://purenav.s3.amazonaws.com/"
     response["image_path"] = base + filepath
     # Save the image to server space and send the link to response object
-    """s3 = boto3.client('s3')
-    b = base64.b64encode(response["image_bytes"])
-    img = Image.open(response["image_bytes"])
-    img.show()
-    img.save("new-image.jpg") """
+    s3 = boto3.client('s3')
+    bucket_name = "purenav"
+    object_name = "images/map_"+str(trip_id)+".png"
+    file_name = os.path.join("images/", "map_"+str(trip_id)+".png")
+    s3.upload_file(file_name, bucket_name, object_name)
+    os.remove(file_name)
+
     return response
+
+
+def db_slack_get_image(file_name):
+    # Change the current working directory
+    os.chdir('images/')
+    cwd = os.getcwd()
+    print("Current working directory: {0}".format(cwd))
+    return None
 
 
 def time_now():
