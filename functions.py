@@ -1148,9 +1148,6 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
     returns(bytes): returns the bytes of the image 
     '''
     
-    if airQuality_info == plannedEvents_info == incidents_info == None:
-        return []
-    
     import plotly.graph_objects as go
     import plotly.express as px
     px.set_mapbox_access_token(plotly_key)
