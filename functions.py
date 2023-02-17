@@ -1135,7 +1135,8 @@ def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incident
     return info_dic
 
 
-def generate_map_image(src,dst,routes_points,airQuality_info,plannedEvents_info,incidents_info, filepath=None):
+def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_info=[],incidents_info=[], filepath=None):
+    
     '''
     src((float,float)): latitude and longitude of the source
     dst((float,float)): latitude and longitude of the destination
@@ -1146,6 +1147,7 @@ def generate_map_image(src,dst,routes_points,airQuality_info,plannedEvents_info,
     filepath(str) optional: saves the image to the specified filepath
     returns(bytes): returns the bytes of the image 
     '''
+    
     import plotly.graph_objects as go
     import plotly.express as px
     px.set_mapbox_access_token(plotly_key)
@@ -1158,9 +1160,15 @@ def generate_map_image(src,dst,routes_points,airQuality_info,plannedEvents_info,
     zoom, center = zoom_center(lons=lons,lats=lats)
 
     #main fig (air)
+    colors = ["purple","purple","purple"]
+    if airQuality_info == [] or airQuality_info == None:
+        airQuality_info = [{"lat":src[0],"lon":src[1],"pm":0},{"lat":dst[0],"lon":dst[1],"pm":0}]
+        colors = ["white","white"]
+    
+    #create main figure
     main_fig = px.density_mapbox(airQuality_info,
                                 lat="lat",lon="lon",z="pm",
-                                color_continuous_scale=["purple","purple","purple"],
+                                color_continuous_scale=colors,
                                 zoom=zoom-1.5,center=center, radius=zoom*8,
                                 height=500, width=800)
 
