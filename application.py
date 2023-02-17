@@ -1273,7 +1273,8 @@ def db_slack_schedule_add(item):
             'dst_address': item.get("dst_address"),
             'medium': item.get("medium"),
             'days_of_week': item.get("days_of_week"),
-            'update_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'update_time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'is_deleted': False
         }
     )
     response['id'] = new_id
@@ -1288,11 +1289,19 @@ def db_slack_schedule_add(item):
 def db_slack_schedule_delete(item):
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table("slack_planned_trips")
-    response = table.delete_item(
+    response = table.update_item(
         Key={
             'id': str(item.get("id"))
+        },
+        UpdateExpression='SET is_deleted = :isDeleted',
+        ExpressionAttributeValues={
+            ':isDeleted': True
         }
     )
+    # Soft delete trips of that schedule
+    if response:
+        db_slack_delete_trip({"schedule_id": str(item.get("id"))})
+
     return response
 
 
@@ -1320,7 +1329,7 @@ def db_slack_schedule_get_all(item):
     item = json.loads(json.dumps(item), parse_float=Decimal)
 
     # Duplicate location check for same user. Scan and filter with user_id and place_name
-    fe = Attr('user_id').eq(str(item.get("user_id")))
+    fe = Attr('user_id').eq(str(item.get("user_id"))) & Attr('is_deleted').ne(True)
     response = table.scan(
         FilterExpression=fe
     )
@@ -1343,6 +1352,7 @@ def db_slack_add_trip(item):
             'user_name': str(item.get("user_name")),
             'first_name': str(item.get("first_name")),
             'schedule_name': item.get("schedule_name"),
+            'schedule_id': item.get("schedule_id"),
             'src_name': item.get("src_name"),
             'dst_name': item.get("dst_name"),
             'src_address': item.get("src"),
@@ -1353,11 +1363,70 @@ def db_slack_add_trip(item):
             'estimated_duration': item.get("estimated_duration"),
             'update_time': time_now().strftime("%Y-%m-%d %H:%M:%S"),
             'is_trip_reminder_sent': False,
-            'is_feedback_reminder_sent': False
+            'is_feedback_reminder_sent': False,
+            'is_deleted': False
 
         }
     )
     return response
+
+
+def db_slack_update_trip(item):
+    # Only update two fields if changed dynamically; suggested_start_time and estimated_duration
+    print("Updating trip, id = ", item.get("id"))
+    table_name = "slack_trip"
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table(table_name)
+
+    update_expr = "SET "
+    exp_attr_val = {}
+    if item.get("suggested_start_time"):
+        update_expr = update_expr + "suggested_start_time = :suggested_start_time, "
+        exp_attr_val[':suggested_start_time'] = item.get("suggested_start_time")
+    if item.get("estimated_duration"):
+        update_expr = update_expr + "estimated_duration = :estimated_duration, "
+        exp_attr_val[':estimated_duration'] = item.get("estimated_duration")
+
+    update_expr = update_expr[:-2]
+    print(update_expr)
+    response = table.update_item(
+        Key={
+            'id': str(item.get("id"))
+        },
+        UpdateExpression=update_expr,
+        ExpressionAttributeValues=exp_attr_val
+    )
+    return response
+
+
+def db_slack_delete_trip(item):
+    # Soft delete trips by schedule_id
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table("slack_trip")
+
+    # Scan the table first to find the trip_ids
+    fe = Attr('schedule_id').eq(item.get("schedule_id"))
+    pe = "id"
+    # Scan table with filters
+    id_response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+    print(id_response)
+    if "Items" in id_response and id_response["Items"]:
+        items = id_response["Items"]
+        for it in items:
+            trip_id = it.get("id")
+            response = table.update_item(
+                Key={
+                    'id': trip_id
+                },
+                UpdateExpression='SET is_deleted = :isDeleted',
+                ExpressionAttributeValues={
+                    ':isDeleted': True
+                }
+            )
+    return
 
 
 def db_slack_get_trip(item):
@@ -1392,7 +1461,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "user_name, first_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
+    pe = "id, user_name, first_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1403,6 +1472,7 @@ def db_slack_upcoming_trips(item):
     dates = [today_date, tomorrow_date]
     for dt in dates:
         for row in rows:
+            schedule_id = row['id']
             user_name = row['user_name']
             first_name = row['first_name']
             schedule_name = row['schedule_name']
@@ -1415,6 +1485,7 @@ def db_slack_upcoming_trips(item):
             day_name = calendar.day_name[dt.weekday()]
             print("The day = ", dt.strftime("%Y-%m-%d"), day_name)
             times = days_of_week.get(day_name)
+            data['schedule_id'] = schedule_id
             data['user_id'] = user_id
             data['user_name'] = user_name
             data['first_name'] = first_name
@@ -1452,7 +1523,9 @@ def db_slack_upcoming_trips(item):
                         # Add or update, get id from existing item
                         if result['Count'] > 0:
                             data['id'] = result['Items'][0].get('id')
-                        db_slack_add_trip(data)
+                            db_slack_update_trip(data)
+                        else:
+                            db_slack_add_trip(data)
 
     # Show the trips generated in the last block
     from_time = time_now().date()
@@ -1468,7 +1541,7 @@ def db_slack_upcoming_trips(item):
     to_time = to_time.strftime("%Y-%m-%d %H:%M:%S")
 
     fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
-         & Attr('scheduled_arrival').lte(to_time)
+         & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').ne(True)
     trip_table = dynamodb.Table("slack_trip")
     response = trip_table.scan(
         FilterExpression=fe
