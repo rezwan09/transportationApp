@@ -185,9 +185,12 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
         
     # -   Image Bytes
     routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
-    image_bytes = generate_map_image(src,dst,routes_points,info_object["airQuality"]["points"],info_object["plannedEvents"],info_object["incidents"], filepath)
-    #return_object["image_bytes"] = image_bytes
-
+    air_quality_points = info_object["airQuality"]["points"] if ("airQuality" in info_object and "points" in info_object["airQuality"]) else []
+    planned_events = info_object["plannedEvents"] if "plannedEvents" in info_object else []
+    incidents = info_object["incidents"] if "incidents" in info_object else []
+    
+    #gerenate and save image locally
+    generate_map_image(src,dst,routes_points,air_quality_points,planned_events,incidents, filepath)
     
     return return_object
 
@@ -1102,6 +1105,7 @@ def zoom_center(lons: tuple=None, lats: tuple=None, lonlats: tuple=None,
     return zoom, center
 
 def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
+    
     '''
     Returns the information points for the selected API type that resides between the src and destination
     src((float,float))*: tuple of latitidue and longitude for the source point
