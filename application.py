@@ -1612,7 +1612,7 @@ def db_slack_settings_update(item):
 
 def db_slack_get_info(item):
     trip_id = item.get("trip_id")
-    src, dst, user_id = None, None, None
+    src, dst, user_id, types = None, None, None, []
     response = None
     # Get src and dst address from slack_trip table
     trip_response = db_slack_get_trip({"id": trip_id})
