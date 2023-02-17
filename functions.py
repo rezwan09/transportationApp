@@ -119,6 +119,7 @@ def get_departure_time(source,destination,preferred_arrival_time):
     #TODO: We still need to provide the preferred route, add the mode of transportation
     
 def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"],filepath=None):
+
     '''
     Gets the info needed to generate the slack message to the user
     
