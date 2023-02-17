@@ -1628,7 +1628,7 @@ def db_slack_get_info(item):
 
     # For now use all alert types
     #types = ["plannedEvents", "incidents", "roadConditions", "weatherStations", "airQuality"]
-    geolocator = Nominatim(user_agent="application")ß
+    geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
     print("src = ", src, " dst = ", dst, " types = ", types)
