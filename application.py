@@ -1642,7 +1642,7 @@ def db_slack_get_info(item):
     object_name = "images/map_"+str(trip_id)+".png"
     file_name = os.path.join("images/", "map_"+str(trip_id)+".png")
     s3.upload_file(file_name, bucket_name, object_name)
-    #os.remove(file_name) 
+    #os.remove(file_name)
 
     return response
 
