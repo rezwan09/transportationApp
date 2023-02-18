@@ -103,7 +103,7 @@ def get_departure_time(source,destination,preferred_arrival_time, medium="drivin
     normal_departure_time = preferred_arrival_time - datetime.timedelta(seconds=normal_duration)
 
     #real duration
-    if normal_departure_time >= datetime.datetime.now() or medium != "driving":
+    if normal_departure_time >= now_mt or medium != "driving":
         real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic', mode=medium)[0]).duration
         real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
         real_departure_time = real_departure_time - timedelta(seconds=offset_sec)
