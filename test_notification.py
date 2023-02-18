@@ -1,4 +1,5 @@
 import notification_handler as notify
+from datetime import datetime
 
 
 def send_push():
@@ -24,6 +25,13 @@ def get_text(item):
     return text
 
 
+def getTimeString():
+    arrival_time_str = "2023-02-17 22:50:00"
+    arrival_time = datetime.strptime(arrival_time_str, "%Y-%m-%d %H:%M:%S")
+    arrival_time_str = arrival_time.strftime("%I:%M %p")
+    print(arrival_time_str)
+
 # Test the function
-print(get_text({"user_name":"name", "src_name":"src-name", "dst_name":"dst_name"}))
+getTimeString()
+#print(get_text({"user_name":"name", "src_name":"src-name", "dst_name":"dst_name"}))
 #send_push()

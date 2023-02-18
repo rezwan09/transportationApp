@@ -1508,8 +1508,12 @@ def db_slack_upcoming_trips(item):
                     print("dtc = ", dtc, " time now = ", time_now())
                     print(dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"))
                     if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
-                        print("Preferred arrival ", dtc)
-                        res = functions.get_departure_time(src, dst, preferred_arrival)
+                        medium_str = None
+                        if medium == "BIKING":
+                            medium_str = "bicycling"
+                        else:
+                            medium_str = medium.lower()
+                        res = functions.get_departure_time(src, dst, preferred_arrival, medium_str)
                         data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
                         data['estimated_duration'] = res[1]
                         # Add the trip
