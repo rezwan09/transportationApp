@@ -242,7 +242,35 @@ def get_temp_label(temp_value, deg="f"):
     return "Very Hot"
 
 def get_visibility_label(visibility_value):
-    return "Clear"
+    
+    
+    '''
+    From https://www.semanticscholar.org/paper/Visual-Improvement-For-Dense-Foggy-%26-Hazy-Weather-%2C-Nirala/97401b46b4d241a1b7a20e1cddf40ce0f3f4b98f
+    visibility_value(float): ditance in meters
+    '''
+    
+    if visibility_value < 50:
+        return "Dense fog"
+    elif visibility_value < 200:
+        return "Thick fog"
+    elif visibility_value < 500:
+        return "Moderate fog"
+    elif visibility_value < 1000:
+        return "Ligh fog"
+    elif visibility_value < 2000:
+        return "Thin fog"
+    elif visibility_value < 4000:
+        return "Haze"
+    elif visibility_value < 10000:
+        return "Light haze"
+    elif visibility_value < 20000:
+        return "Clear"
+    elif visibility_value < 50000:
+        return "Very Clear"
+    elif visibility_value < 277000:
+        return "Exceptionally Clear"
+    
+    return "Pure air"
 
 def get_uvi_label(uiv_value):
     return "Safe"
