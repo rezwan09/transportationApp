@@ -183,7 +183,7 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
         return_object["uvi"] = ws["uvi"]
         
         # labels
-        return_object["wind_label"] = get_wind_label(return_object["temp"])
+        return_object["wind_label"] = get_wind_label(return_object["wind_speed"])
         return_object["temp_label"] = get_temp_label(return_object["temp"])
         return_object["visibility_label"] = get_visibility_label(return_object["visibility"])
         return_object["uvi_label"] = get_uvi_label(return_object["uvi"])
@@ -205,8 +205,41 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 
-def get_temp_label(temp_value):
-    return "Normal"
+def ftoc(f):
+    return (f - 32) * 5/9
+
+def get_temp_label(temp_value, deg="f"):
+    '''
+    temp_value(float): in celcius or fehre
+    deg(str): f or c (default f)
+    From https://www.researchgate.net/figure/The-comfort-sensation-scale-of-the-physiological-equivalent-temperature-PET_tbl2_258160671
+    '''    
+    
+    if type(temp_value) == str:
+        temp_value = float(temp_value)
+    
+    # if in f convert to c
+    if deg == "f":
+        temp_value = ftoc(temp_value)
+    
+    if temp_value <= 4:
+        return "Very Cold"
+    elif temp_value <= 8:
+        return "Cold"
+    elif temp_value <= 13:
+        return "Cool"
+    elif temp_value <= 18:
+        return "Slightly Cool"
+    elif temp_value <= 23:
+        return "Comfortable/Neutral"
+    elif temp_value <= 29:
+        return "Slightly Warm"
+    elif temp_value <= 35:
+        return "Warm"
+    elif temp_value <= 41:
+        return "Hot"
+    
+    return "Very Hot"
 
 def get_visibility_label(visibility_value):
     return "Clear"
