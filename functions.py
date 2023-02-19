@@ -752,11 +752,10 @@ def get_plannedEvents(src,dst,to_date=None,method="rect",routes_points=None):
     #filter by date
     if to_date == None:
         today = datetime.datetime.today()
-        to_date = today + timedelta(days=1)
+        to_date = today 
     
     # get all events that started in the past and did not end yet or will start tomorrow.
-    timely_events = list(filter(lambda x: datetime.datetime.strptime(x["properties"]["schedule"][0]["startTime"],'%Y-%m-%dT%H:%M:%S.%fZ') <= to_date , close_events))
-    timely_events = list(filter(lambda x: datetime.datetime.strptime(x["properties"]["schedule"][0]["endTime"],'%Y-%m-%dT%H:%M:%S.%fZ') >= today , close_events))
+    timely_events = list(filter(lambda x: datetime.datetime.strptime(x["properties"]["schedule"][0]["startTime"],'%Y-%m-%dT%H:%M:%S.%fZ').date() == today.date() , close_events))
     timely_events.sort(key=lambda x: x["properties"]["startTime"])
         
     # construct return dictionary
