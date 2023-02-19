@@ -86,7 +86,7 @@ def get_departure_time(source,destination,preferred_arrival_time, medium="drivin
     '''
     
     # Log params
-    print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time = ", preferred_arrival_time, " medium = ", medium)
+    print("In 'get_departure_time' : ", "source = ", source, " destination = ", destination, " preferred_arrival_time = ", preferred_arrival_time)
     # MT time
     now_svr = datetime.datetime.now()
     now_mt = datetime.datetime.now(pytz.timezone('US/Mountain'))
@@ -103,8 +103,7 @@ def get_departure_time(source,destination,preferred_arrival_time, medium="drivin
     normal_departure_time = preferred_arrival_time - datetime.timedelta(seconds=normal_duration)
 
     #real duration
-    if normal_departure_time >= now_svr:
-        #or medium != "driving"
+    if normal_departure_time >= datetime.datetime.now() or medium != "driving":
         real_duration = Route(gmaps.directions(source,destination,departure_time=normal_departure_time,traffic_model='pessimistic', mode=medium)[0]).duration
         real_departure_time = preferred_arrival_time - datetime.timedelta(seconds=real_duration)
         real_departure_time = real_departure_time - timedelta(seconds=offset_sec)
@@ -179,6 +178,7 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
         return_object["max_temperature"] = ws["max temperature"]
         return_object["avg_wind_speed"] = ws["average wind speed"]
         return_object["avg_wind_direction"] = ws["average wind direction"]
+        return_object["wind_label"] = get_wind_label(return_object["avg_wind_speed"])
         return_object["visibility"] = ws["visibility"]
         
     # -   Image Bytes
@@ -197,6 +197,36 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 
+def get_wind_label(avg_speed):
+    if avg_speed == "" or avg_speed == None:
+        return ""
+    elif avg_speed < 1:
+        return "Calm"
+    elif avg_speed <= 3:
+        return "Light Air"
+    elif avg_speed <= 7:
+        return "Light Breez"
+    elif avg_speed <= 12:
+        return "Gentle Breeze"
+    elif avg_speed <= 18:
+        return "Moderate Breeze	"
+    elif avg_speed <= 24:
+        return "Fresh Breeze"
+    elif avg_speed <= 31:
+        return "Strong Breeze"
+    elif avg_speed <= 38:
+        return "Near Gale"
+    elif avg_speed <= 46:
+        return "Gale"
+    elif avg_speed <= 54:
+        return "Storm"
+    elif avg_speed <= 64:
+        return "Light Breez"
+    elif avg_speed <= 72:
+        return "Violent Storm"
+    else:
+        return "Hurricane"
+    
 
 class Route:
     
@@ -1232,8 +1262,7 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
 
     #store locally
     if filepath != None:
-        print("Writing image to = ",filepath)
-        main_fig.write_image(filepath)
+            main_fig.write_image(filepath)
     
     #generate bytes
     img_bytes = main_fig.to_image(format="png")
