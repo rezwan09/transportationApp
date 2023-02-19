@@ -1233,7 +1233,6 @@ def db_get_emojis():
 
 def db_slack_schedule_add(item):
     table_name = "slack_planned_trips"
-    dynamodb_client = boto3.client('dynamodb', region_name="us-east-1")
     dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
     table = dynamodb.Table(table_name)
 
@@ -1283,6 +1282,24 @@ def db_slack_schedule_add(item):
     user_id = str(item.get("user_id"))
     today = "today"
     db_slack_upcoming_trips({"user_id":user_id, "day":today})
+
+    # Also add default settings if no settings present in table
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table = dynamodb.Table("slack_settings")
+    settings_res = table.get_item(
+        Key={
+            'user_id': str(item.get("user_id"))
+        }
+    )
+    if "Item" not in settings_res:
+        settings_res = table.put_item(
+            Item={
+                'user_id': str(item.get("user_id")),
+                'minutes_before': "10",
+                'alert_types': ['airQuality', 'plannedEvents', 'incidents', 'roadConditions', 'weatherStations']
+            }
+        )
+
     return response
 
 
