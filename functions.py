@@ -22,6 +22,7 @@ api_key = open('google_maps_api.txt').readlines()[0]
 brez_api = open('breezometer_api.txt').readlines()[0]
 cotrip_api_key = open('cotrip_api_key.txt').readlines()[0] 
 plotly_key = open('plotly_key.txt').readlines()[0] 
+openweather_key = open('openWeather_api.txt').readlines()[0]
 gmaps = googlemaps.Client(key=api_key)   
     
 def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest', medium="driving"):
@@ -173,13 +174,20 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
     # -   Visibility
     if "weatherStations" in info_object:
         ws = info_object["weatherStations"]
-        return_object["temperature"] = ws["temperature"]
-        return_object["min_temperature"] = ws["min temperature"]
-        return_object["max_temperature"] = ws["max temperature"]
-        return_object["avg_wind_speed"] = ws["average wind speed"]
-        return_object["avg_wind_direction"] = ws["average wind direction"]
-        return_object["wind_label"] = get_wind_label(return_object["avg_wind_speed"])
+       
+        #values
+        return_object["temp"] = ws["temp"]
+        return_object["wind_speed"] = ws["wind_speed"]
+        return_object["wind_deg"] = ws["wind_deg"]
         return_object["visibility"] = ws["visibility"]
+        return_object["uvi"] = ws["uvi"]
+        
+        # labels
+        return_object["wind_label"] = get_wind_label(return_object["temp"])
+        return_object["temp_label"] = get_temp_label(return_object["temp"])
+        return_object["visibility_label"] = get_visibility_label(return_object["visibility"])
+        return_object["uvi_label"] = get_uvi_label(return_object["uvi"])
+
         
     # -   Image Bytes
     routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
@@ -196,6 +204,15 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
+
+def get_temp_label(temp_value):
+    return "Normal"
+
+def get_visibility_label(visibility_value):
+    return "Clear"
+
+def get_uvi_label(uiv_value):
+    return "Safe"
 
 def get_wind_label(avg_speed):
     if avg_speed == "" or avg_speed == None:
@@ -844,13 +861,36 @@ def get_currentRoadConditions(src,dst,method="rect",routes_points=None):
 def sort_by_closest(point,x):
     return geopy.distance.geodesic(point,[x[1],x[0]]).m
 
+def get_weather_info(point):
+    '''
+    Gets the weather information at source using OpenWeatherAPI (temperature, feels like temperature, wind speed, wind direction, uvi, visibility)
+    src((float,float))*: tuple of latitidue and longitude for the source point
+    method(str): the filteration method (rect/circle)
+    returns: a list of weather information json objects
+    '''
+    lat = point[0]
+    lon = point[1]
+    res = requests.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&appid={openweather_key}&units=imperial").json()
+    
+    if "current" in res:
+        res = res["current"]
+    else:
+        return {}
+    
+    #information
+    obj = dict()    
+    obj["temp"] = res["temp"] if "temp" in res else None
+    obj["wind_speed"] = res["wind_speed"] if "temp" in res else None
+    obj["visibility"] = res["visibility"] if "temp" in res else None
+    obj["uvi"] = res["uvi"] if "temp" in res else None
+    obj["wind_deg"] = res["wind_deg"] if "temp" in res else None
+    
+    return obj
+    
 def get_weatherStations(src):
     '''
-    Gets the weather information from source to destination (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
+    Gets the weather information at source location (Min, max and current temperature, avg wind speed, avgh wind direction, visibility, and precpipitation rate)
     src((float,float))*: tuple of latitidue and longitude for the source point
-    dst((float,float))*: tuple of latitidue and longitude for the destination point
-    method(str): the filteration method (rect/circle)
-    routes_points([(lat,lon)...]): a list of all roads points from source to destination
     returns: a list of weather information json objects
     '''
     res = fetch("weatherStations")
@@ -1155,7 +1195,7 @@ def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incident
             info_dic[type] = get_currentRoadConditions(src,dst,method,routes_points)
             print("Road Conditions: %d" % len(info_dic[type]))
         elif type == "weatherStations":
-            info_dic[type] = get_weatherStations(src)
+            info_dic[type] = get_weather_info(src)
             print("Weather Stations: %d" % len(info_dic[type]))
         elif type == "airQuality":
             info_dic[type] = get_roadAirQuality(src,dst,routes_points)
