@@ -1635,7 +1635,7 @@ def db_slack_get_info(item):
     geolocator = Nominatim(user_agent="application")
     src = geolocator.geocode(src)
     dst = geolocator.geocode(dst)
-    print("src = ", src, " dst = ", dst, " types = ", types)
+    print("src = ", (src.latitude, src.longitude), " dst = ", (src.latitude, src.longitude), " types = ", types)
     filepath = "images/"+"map_"+str(trip_id)+".png"
     response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude), None, types, filepath)
     base = "https://purenav.s3.amazonaws.com/"

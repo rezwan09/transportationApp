@@ -1232,7 +1232,8 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
 
     #store locally
     if filepath != None:
-            main_fig.write_image(filepath)
+        print("Writing image to = ",filepath)
+        main_fig.write_image(filepath)
     
     #generate bytes
     img_bytes = main_fig.to_image(format="png")
