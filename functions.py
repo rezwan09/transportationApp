@@ -273,7 +273,17 @@ def get_visibility_label(visibility_value):
     return "Pure air"
 
 def get_uvi_label(uiv_value):
-    return "Safe"
+    '''
+    From here https://www.epa.gov/enviro/uv-index-description
+    uiv_value(float): the value of uv
+    '''
+    
+    if uiv_value < 2:
+        return "Safe"
+    if uiv_value < 6:
+        return "Take Precautions"
+    
+    return "Protection needed"
 
 def get_wind_label(avg_speed):
     if avg_speed == "" or avg_speed == None:
