@@ -1264,7 +1264,6 @@ def db_slack_schedule_add(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
-            'first_name': str(item.get("first_name")),
             'schedule_name': item.get("schedule_name"),
             'src_name': item.get("src_name"),
             'src_address': item.get("src_address"),
@@ -1367,7 +1366,6 @@ def db_slack_add_trip(item):
             'id': str(new_id),
             'user_id': str(item.get("user_id")),
             'user_name': str(item.get("user_name")),
-            'first_name': str(item.get("first_name")),
             'schedule_name': item.get("schedule_name"),
             'schedule_id': item.get("schedule_id"),
             'src_name': item.get("src_name"),
@@ -1478,7 +1476,7 @@ def db_slack_upcoming_trips(item):
     # Generate trips first then show
     # First scan the full table with the user_id
     fe = Key('user_id').eq(str(user_id))
-    pe = "id, user_name, first_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
+    pe = "id, user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
         FilterExpression=fe,
@@ -1491,7 +1489,6 @@ def db_slack_upcoming_trips(item):
         for row in rows:
             schedule_id = row['id']
             user_name = row['user_name']
-            first_name = row['first_name']
             schedule_name = row['schedule_name']
             src_name = row['src_name']
             dst_name = row['dst_name']
@@ -1505,7 +1502,6 @@ def db_slack_upcoming_trips(item):
             data['schedule_id'] = schedule_id
             data['user_id'] = user_id
             data['user_name'] = user_name
-            data['first_name'] = first_name
             data['schedule_name'] = schedule_name
             data['src_name'] = src_name
             data['dst_name'] = dst_name
