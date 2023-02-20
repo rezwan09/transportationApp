@@ -1475,7 +1475,7 @@ def db_slack_upcoming_trips(item):
 
     # Generate trips first then show
     # First scan the full table with the user_id
-    fe = Key('user_id').eq(str(user_id))
+    fe = Attr('user_id').eq(str(user_id)) & Attr('is_deleted').ne(True)
     pe = "id, user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
     # Scan table with filters
     pref_response = table.scan(
