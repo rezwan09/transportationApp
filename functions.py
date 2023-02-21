@@ -970,14 +970,15 @@ def get_weather_info(point):
     lat = point[0]
     lon = point[1]
     res = requests.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&appid={openweather_key}&units=imperial").json()
-    
+
+    # Log
+    print ("open weather key = ", openweather_key)
+    print("res = ", res)
     if "current" in res:
         res = res["current"]
     else:
         return {}
 
-    #print temp
-    print("open weather result = ", res)
     #information
     obj = dict()    
     obj["temp"] = res["temp"] if "temp" in res else None
