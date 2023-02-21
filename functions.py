@@ -189,15 +189,12 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
         return_object["uvi_label"] = get_uvi_label(return_object["uvi"])
 
         
-    # -   Image Bytes
-    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1])
+    # - gerenate and save image locally
     air_quality_points = info_object["airQuality"]["points"] if ("airQuality" in info_object and "points" in info_object["airQuality"]) else []
     planned_events = info_object["plannedEvents"] if "plannedEvents" in info_object else []
     incidents = info_object["incidents"] if "incidents" in info_object else []
-    
-    #gerenate and save image locally
-    condensed_points = condence_rout_points(routes_points)
-    generate_map_image(src,dst,condensed_points,air_quality_points,planned_events,incidents, filepath)
+    routes_points = get_all_possible_routes(src[0],src[1],dst[0],dst[1],condence=True)
+    generate_map_image(src,dst,routes_points,air_quality_points,planned_events,incidents, filepath)
     
     return return_object
 
@@ -1071,7 +1068,7 @@ def get_matrix(rect,space=2000, max_points=25):
         
     return spaced_matrix
 
-def get_all_possible_routes(lat_1,lon1,lat_2,lon_2):
+def get_all_possible_routes(lat_1,lon1,lat_2,lon_2,condence=False):
     """
     It uses the gmaps library to get all the possible routes between the two points and then decodes the polylines for each route.
     lat_1 (float): latitude for point 1
@@ -1082,9 +1079,22 @@ def get_all_possible_routes(lat_1,lon1,lat_2,lon_2):
     """
     dirs = gmaps.directions((lat_1,lon1),(lat_2,lon_2), alternatives=True)
     all_points = []
-    for dir in dirs:
+    for i,dir in enumerate(dirs):
         poly = dir["overview_polyline"]["points"]
         points = polyline.decode(poly) 
+        points = list(map(lambda x: (x[0],x[1],i),points))
+        
+        #if condence
+        if condence:
+            cpoints = []
+            for pi in range(1,len(points)):
+                p1 = points[pi-1]
+                p2 = points[pi]
+                c = condense_points((p1[0],p1[1]),(p2[0],p2[1]))
+                cpoints = cpoints + c
+            cpoints = list(map(lambda x: (x[0],x[1],i),cpoints))
+            points = cpoints
+        
         all_points = all_points + points
     
     return all_points
@@ -1321,15 +1331,16 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
     main_fig = px.density_mapbox(airQuality_info,
                                 lat="lat",lon="lon",z="pm",
                                 color_continuous_scale=colors,
-                                zoom=zoom-1.5,center=center, radius=zoom*8,
+                                zoom=zoom-0.5,center=center, radius=zoom*8,
                                 height=600, width=800)
 
 
     #add roads
+    colors = ["blue","lightblue","darkblue","cyan","darkcyan"]
     main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
                             lon=list(map(lambda x: x[1],routes_points)),
                             mode = "markers",
-                            marker={'size': 2, 'color': 'blue', 'allowoverlap': True},
+                            marker={'size': 2, 'color': list(map(lambda x: colors[x[2]],routes_points)), 'allowoverlap': True},
                             showlegend=False,
                             )
 
@@ -1338,12 +1349,13 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
     for event in plannedEvents_info:
         main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],event["points"])),
                                 lon=list(map(lambda x: x[0],event["points"])),
-                                mode = "markers",
+                                mode = "markers+text",
                                 marker={'size': 12,'color': 'yellow', 'allowoverlap': True},
                                 showlegend=False,
                                 textfont=dict(
-                                    size=8,
-                                    color="yellow"),
+                                    size=12,
+                                    color="yellow",
+                                    ),
                                 text="construction",
                                 textposition="bottom center",
                                 )
@@ -1352,13 +1364,13 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
     for inc in incidents_info:
         main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],inc["points"])),
                                 lon=list(map(lambda x: x[0],inc["points"])),
-                                mode = "markers",
+                                mode = "markers+text",
                                 marker={'size': 12,'color':'red','allowoverlap':True},
                                 showlegend=False,
                                 text="Incident",
                                 textposition="bottom center",
                                 textfont=dict(
-                                    size=8,
+                                    size=12,
                                     color="red")
                                 )
 
