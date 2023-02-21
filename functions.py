@@ -1237,7 +1237,7 @@ def zoom_center(lons: tuple=None, lats: tuple=None, lonlats: tuple=None,
     maxlat, minlat = max(lats), min(lats)
     center = {
         'lon': round((maxlon + minlon) / 2, 6),
-        'lat': round((maxlat + minlat) / 2, 6)
+        'lat': round(((maxlat + minlat) / 2)+0.01, 6)
     }
     
     # longitudinal range by zoom level (20 to 1)
@@ -1320,29 +1320,39 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
 
     #zoom function
     zoom, center = zoom_center(lons=lons,lats=lats)
-
+    
     #main fig (air)
-    colors = ["purple","purple","purple"]
+    colors = ["green","yellow","yellow","orange","orange","red","red","red","red","red","purple","purple","purple","purple","purple"]
     if airQuality_info == [] or airQuality_info == None:
         airQuality_info = [{"lat":src[0],"lon":src[1],"pm":0},{"lat":dst[0],"lon":dst[1],"pm":0}]
         colors = ["white","white"]
+        
+    #remove_at location if more than two points for readaility
+    if len(airQuality_info) > 2:
+        airQuality_info = list(filter(lambda x: not ((x["lat"] == src[0] and x["lon"] == src[1]) or ((x["lat"] == dst[0] and x["lon"] == dst[1]))),airQuality_info))
     
     #create main figure
-    main_fig = px.density_mapbox(airQuality_info,
-                                lat="lat",lon="lon",z="pm",
+    main_fig = px.scatter_mapbox(airQuality_info,
+                                lat="lat",lon="lon",color="pm",size=[40]*len(airQuality_info),
+                                text=list(map(lambda x: str(x["pm"]),airQuality_info)),
                                 color_continuous_scale=colors,
-                                zoom=zoom-0.5,center=center, radius=zoom*8,
-                                height=600, width=800)
-
+                                range_color=[0,250],
+                                opacity=0.2,
+                                size_max=40,
+                                zoom=zoom-1,center=center,
+                                height=600, width=800,labels={"pm":"Pm2.5 Level"})
+    
+    main_fig.update_traces(textfont=dict(color="white"))
+    main_fig.update_coloraxes(colorbar=dict(orientation="h",thickness=15, yanchor="top", bgcolor="white"),colorbar_title=dict(text="Pollution Level (pm2.5)",side="top"))
 
     #add roads
-    colors = ["blue","lightblue","darkblue","cyan","darkcyan"]
+    colors = ["aqua","lightblue","cyan"]
     main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
                             lon=list(map(lambda x: x[1],routes_points)),
                             mode = "markers",
                             marker={'size': 2, 'color': list(map(lambda x: colors[x[2]],routes_points)), 'allowoverlap': True},
                             showlegend=False,
-                            )
+                            legendgroup=None)
 
 
     # #add events
@@ -1358,7 +1368,7 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
                                     ),
                                 text="construction",
                                 textposition="bottom center",
-                                )
+                                legendgroup=None)
 
     # #add incidents
     for inc in incidents_info:
@@ -1371,26 +1381,28 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
                                 textposition="bottom center",
                                 textfont=dict(
                                     size=12,
-                                    color="red")
-                                )
+                                    color="red"),
+                                legendgroup=None)
 
     #add srs/dst
-    main_fig.add_scattermapbox(lat=lats,
-                            lon=lons,
-                            mode = "text+markers",
-                            text=["Source","Destination"],
-                            textposition="bottom center",
-                            marker={'size': 8,'symbol': ["marker","marker"], 'allowoverlap':True},
-                            showlegend=False,
-                            textfont=dict(
-                                size=16,
-                                color="white"
-                            ))
+    # main_fig.add_scattermapbox(lat=lats,
+    #                         lon=lons,
+    #                         mode = "text+markers",
+    #                         text=["Source","Destination"],
+    #                         textposition="bottom center",
+    #                         marker={'size': 8,'symbol': ["marker","marker"], 'allowoverlap':True},
+    #                         showlegend=False,
+    #                         textfont=dict(
+    #                             size=16,
+    #                             color="white"
+    #                         ),
+    #                         legendgroup=None)
     
     #figure layout
-    main_fig.update_layout(coloraxis_showscale=False, 
-                        mapbox=dict(style='satellite'),
-                        margin=dict(l=4, r=4, t=4, b=4))
+    main_fig.update_layout(
+                        mapbox=dict(style='dark'),
+                        margin=dict(l=4, r=4, t=4, b=4)
+                        )
 
     #store locally
     if filepath != None:
