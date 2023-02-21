@@ -995,8 +995,10 @@ def get_weatherStations(src):
         
     return obj
 
+def calc_space_between_points(src,dst,routes_points=None):
+    return 200
 
-def get_roadAirQuality(src,dst,routes_points=None,space_between_points=2000,max_points=25):
+def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_points=25):
     '''
     Gets the road air quality
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -1006,6 +1008,10 @@ def get_roadAirQuality(src,dst,routes_points=None,space_between_points=2000,max_
     max_points(int): the maximum number of points to include in the matrix
     returns: a dictionary of average air quality and a list of pm2.5 information for each coordniate
     '''
+    #space between points
+    if space_between_points == None:
+        space_between_points = calc_space_between_points(src,dst,routes_points)
+    
     #make matrix 
     rect = get_rectangel(src,dst,routes_points,lat_first=True)
     matrix = get_matrix(rect,space_between_points,max_points)
@@ -1237,7 +1243,7 @@ def zoom_center(lons: tuple=None, lats: tuple=None, lonlats: tuple=None,
     maxlat, minlat = max(lats), min(lats)
     center = {
         'lon': round((maxlon + minlon) / 2, 6),
-        'lat': round(((maxlat + minlat) / 2)+0.01, 6)
+        'lat': round((maxlat + minlat) / 2, 6)
     }
     
     # longitudinal range by zoom level (20 to 1)
@@ -1334,19 +1340,19 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
     #create main figure
     main_fig = px.scatter_mapbox(airQuality_info,
                                 lat="lat",lon="lon",color="pm",size=[40]*len(airQuality_info),
-                                text=list(map(lambda x: str(x["pm"]),airQuality_info)),
+                                text=list(map(lambda x: str(round(x["pm"],1)),airQuality_info)),
                                 color_continuous_scale=colors,
                                 range_color=[0,250],
-                                opacity=0.2,
+                                opacity=0.15,
                                 size_max=40,
                                 zoom=zoom-1,center=center,
                                 height=600, width=800,labels={"pm":"Pm2.5 Level"})
     
-    main_fig.update_traces(textfont=dict(color="white"))
-    main_fig.update_coloraxes(colorbar=dict(orientation="h",thickness=15, yanchor="top", bgcolor="white"),colorbar_title=dict(text="Pollution Level (pm2.5)",side="top"))
+    main_fig.update_traces(textfont=dict(color="gray"),marker=dict(allowoverlap=True),selector=dict(type='scattermapbox'))
+    main_fig.update_coloraxes(colorbar=dict(orientation="h",thickness=15, yanchor="top", bgcolor="white"),colorbar_title=dict(text="Particle air pollution (PM2.5 in ug/m3)",side="top"))
 
     #add roads
-    colors = ["aqua","lightblue","cyan"]
+    colors = ["dodgerblue","lightsteelblue","cornflowerblue","skyblue"]
     main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
                             lon=list(map(lambda x: x[1],routes_points)),
                             mode = "markers",
@@ -1360,11 +1366,11 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
         main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],event["points"])),
                                 lon=list(map(lambda x: x[0],event["points"])),
                                 mode = "markers+text",
-                                marker={'size': 12,'color': 'yellow', 'allowoverlap': True},
+                                marker=dict(size= 8,color= 'yellow',allowoverlap=True, symbol="square"),
                                 showlegend=False,
                                 textfont=dict(
-                                    size=12,
-                                    color="yellow",
+                                    size=10,
+                                    color="white"
                                     ),
                                 text="construction",
                                 textposition="bottom center",
@@ -1375,28 +1381,30 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
         main_fig.add_scattermapbox(lat=list(map(lambda x: x[1],inc["points"])),
                                 lon=list(map(lambda x: x[0],inc["points"])),
                                 mode = "markers+text",
-                                marker={'size': 12,'color':'red','allowoverlap':True},
+                                marker=dict(size= 8,color='red',allowoverlap=True, symbol="triangle"),
                                 showlegend=False,
                                 text="Incident",
                                 textposition="bottom center",
                                 textfont=dict(
-                                    size=12,
-                                    color="red"),
+                                    size=10,
+                                    color="white"),
                                 legendgroup=None)
 
     #add srs/dst
-    # main_fig.add_scattermapbox(lat=lats,
-    #                         lon=lons,
-    #                         mode = "text+markers",
-    #                         text=["Source","Destination"],
-    #                         textposition="bottom center",
-    #                         marker={'size': 8,'symbol': ["marker","marker"], 'allowoverlap':True},
-    #                         showlegend=False,
-    #                         textfont=dict(
-    #                             size=16,
-    #                             color="white"
-    #                         ),
-    #                         legendgroup=None)
+    main_fig.add_scattermapbox(lat=lats,
+                            lon=lons,
+                            mode = "markers+text",
+                            text=["FROM","TO"],
+                            textposition="bottom center",
+                            showlegend=False,
+                            marker=dict(
+                                size=0,color="white"
+                            ),
+                            textfont=dict(
+                                size=14,
+                                color="white"
+                            ),
+                            legendgroup=None)
     
     #figure layout
     main_fig.update_layout(
