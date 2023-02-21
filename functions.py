@@ -972,7 +972,7 @@ def get_weather_info(point):
     res = requests.get(f"https://api.openweathermap.org/data/3.0/onecall?lat={lat}&lon={lon}&appid={openweather_key}&units=imperial").json()
 
     # Log
-    print ("open weather key = ", openweather_key)
+    print("open weather key = ", openweather_key)
     print("res = ", res)
     if "current" in res:
         res = res["current"]
