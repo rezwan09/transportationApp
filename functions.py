@@ -975,7 +975,9 @@ def get_weather_info(point):
         res = res["current"]
     else:
         return {}
-    
+
+    #print temp
+    print("open weather result = ", res)
     #information
     obj = dict()    
     obj["temp"] = res["temp"] if "temp" in res else None
