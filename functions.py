@@ -187,6 +187,10 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
         return_object["temp_label"] = get_temp_label(return_object["temp"])
         return_object["visibility_label"] = get_visibility_label(return_object["visibility"])
         return_object["uvi_label"] = get_uvi_label(return_object["uvi"])
+        
+    #counts of incidents and construction
+    return_object["road_incident_count"] = len(info_object["incidents"]) if "incidents" in info_object else 0
+    return_object["road_construction_count"] = len(info_object["plannedEvents"]) if "plannedEvents" in info_object else 0
 
         
     # - gerenate and save image locally
