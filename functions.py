@@ -196,7 +196,8 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
     incidents = info_object["incidents"] if "incidents" in info_object else []
     
     #gerenate and save image locally
-    generate_map_image(src,dst,routes_points,air_quality_points,planned_events,incidents, filepath)
+    condensed_points = condence_rout_points(routes_points)
+    generate_map_image(src,dst,condensed_points,air_quality_points,planned_events,incidents, filepath)
     
     return return_object
 
@@ -204,6 +205,15 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
+
+def condence_rout_points(route_points):
+    #condenced points
+    condenced_points = []
+    for i in range(1,len(route_points)):
+        p1 = route_points[i-1]
+        p2 = route_points[i]
+        condenced_points += condense_points(p1,p2)
+    return condenced_points
 
 def ftoc(f):
     return (f - 32) * 5/9
@@ -1312,14 +1322,14 @@ def generate_map_image(src,dst,routes_points,airQuality_info=[],plannedEvents_in
                                 lat="lat",lon="lon",z="pm",
                                 color_continuous_scale=colors,
                                 zoom=zoom-1.5,center=center, radius=zoom*8,
-                                height=500, width=800)
+                                height=600, width=800)
 
 
     #add roads
     main_fig.add_scattermapbox(lat=list(map(lambda x: x[0],routes_points)),
                             lon=list(map(lambda x: x[1],routes_points)),
                             mode = "markers",
-                            marker={'size': 4, 'color': 'blue', 'allowoverlap': True},
+                            marker={'size': 2, 'color': 'blue', 'allowoverlap': True},
                             showlegend=False,
                             )
 
