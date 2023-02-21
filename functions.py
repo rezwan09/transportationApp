@@ -115,7 +115,7 @@ def get_departure_time(source,destination,preferred_arrival_time, medium="drivin
         alt_departure_time = alt_departure_time - timedelta(seconds=offset_sec)
         return (alt_departure_time, alt_duration)
         
-def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"],filepath=None):
+def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"],filepath=None,previous_air_points=[]):
 
     '''
     Gets the info needed to generate the slack message to the user
@@ -142,7 +142,7 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
     
     #get all requested info
     if info_object == None:
-        info_object = get_info(src,dst,types=types)
+        info_object = get_info(src,dst,types=types,previous_air_points=previous_air_points)
     
     #empty object to prep
     return_object = dict()
@@ -202,6 +202,27 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
+
+def get_cached_air_quality(lat,lon,previous_points):
+    
+    '''
+    lat(float): xxx
+    lon(float): xxx
+    previous_points(list(dic)): [{lat:xx,lon:xx,pm:xx}]
+    returns the value of pm 2.5 for the nearest point
+    '''
+    
+    # read all previous stored
+    if previous_points == []:
+        return None
+    
+    # get from previous points within 200m
+    for p in previous_points:
+        if distance(p,[lat,lon]) < 200:
+            return p["pm"]
+    
+    #return none
+    return None
 
 def condence_rout_points(route_points):
     #condenced points
@@ -998,7 +1019,10 @@ def get_weatherStations(src):
 def calc_space_between_points(src,dst,routes_points=None):
     return 200
 
-def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_points=25):
+def read_all_previous_aq_points():
+    return []
+
+def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_points=25,previous_points=[]):
     '''
     Gets the road air quality
     src((float,float))*: tuple of latitidue and longitude for the source point
@@ -1012,6 +1036,10 @@ def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_
     if space_between_points == None:
         space_between_points = calc_space_between_points(src,dst,routes_points)
     
+    #read previous stored points
+    if previous_points == []:
+        previous_points = read_all_previous_aq_points()
+    
     #make matrix 
     rect = get_rectangel(src,dst,routes_points,lat_first=True)
     matrix = get_matrix(rect,space_between_points,max_points)
@@ -1020,16 +1048,19 @@ def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_
     #call for each point
     responses = []
     for p in matrix:
-        (lat,lon) = p    
-        api = "current-conditions?lat=%f&lon=%f&features=pollutants_concentrations&key=%s" % (lat,lon,api_key)
-        res = requests.get(base+api).json()    
-        pm = res["data"]["pollutants"]["pm25"]["concentration"]["value"]
+        (lat,lon) = p   
+        pm = get_cached_air_quality(lat,lon,previous_points)
+        if pm == None: 
+            api = "current-conditions?lat=%f&lon=%f&features=pollutants_concentrations&key=%s" % (lat,lon,api_key)
+            res = requests.get(base+api).json()    
+            pm = res["data"]["pollutants"]["pm25"]["concentration"]["value"]
         responses.append(dict(
             lat = lat,
             lon = lon,
             pm = pm,
             full_res = res
         ))
+            
     
     avg_air = average(list(map(lambda x: x["pm"],responses)))
     
@@ -1268,7 +1299,7 @@ def zoom_center(lons: tuple=None, lats: tuple=None, lonlats: tuple=None,
     
     return zoom, center
 
-def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"]):
+def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incidents","roadConditions","weatherStations","airQuality"],previous_air_points=[]):
     
     '''
     Returns the information points for the selected API type that resides between the src and destination
@@ -1295,7 +1326,7 @@ def get_info(src,dst,to_date=None,method="rect",types=["plannedEvents","incident
             info_dic[type] = get_weather_info(src)
             print("Weather Stations: %d" % len(info_dic[type]))
         elif type == "airQuality":
-            info_dic[type] = get_roadAirQuality(src,dst,routes_points)
+            info_dic[type] = get_roadAirQuality(src,dst,routes_points,previous_points=previous_air_points)
             print("Road Avg Quality: %d" % len(info_dic[type]["points"]))
         else:
             return info_dic
