@@ -14,6 +14,7 @@ import pytz
 import geopy
 import geopy.distance
 import plotly.express as px
+import boto3
 
 
 
@@ -24,6 +25,9 @@ cotrip_api_key = open('cotrip_api_key.txt').readlines()[0]
 plotly_key = open('plotly_key.txt').readlines()[0] 
 openweather_key = open('openWeather_api.txt').readlines()[0]
 gmaps = googlemaps.Client(key=api_key)   
+bucket="breezometer-airpoints"
+today = datetime.datetime.today().date()
+    
     
 def calc_fastest_routes(A,B,reported_points=[],n_search_points=10, preference='fastest', medium="driving"):
     
@@ -207,7 +211,29 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 
-def get_cached_air_quality(lat,lon,previous_points):
+def read_airQuality_points():
+    filename = str(today)+".csv"
+    return read_from_s3(bucket,filename)
+
+def read_from_s3(bucket,filename):
+    s3 = boto3.resource('s3')
+    try:
+        obj = s3.Object(bucket,filename)
+        data = obj.get()['Body'].read()
+        return json.loads(data)
+    except:
+        return []
+
+def write_airQuality_points(list):
+    filename = str(today)+".csv"
+    write_to_s3(list,bucket,filename)
+    
+def write_to_s3(list,bucket,filename):
+    s3 = boto3.client("s3")
+    body = json.dumps(list)
+    s3.put_object(Bucket=bucket,Key=filename,Body=body)
+
+def get_cached_air_quality(lat,lon,previous_points=None):
     
     '''
     lat(float): xxx
@@ -217,13 +243,13 @@ def get_cached_air_quality(lat,lon,previous_points):
     '''
     
     # read all previous stored
-    if previous_points == []:
-        return None
+    if previous_points == None:
+        previous_points = read_airQuality_points()
     
     # get from previous points within 200m
     for p in previous_points:
-        if distance(p,[lat,lon]) < 200:
-            return p["pm"]
+        if distance([p["lat"],p["lon"]],[lat,lon]) < 200:
+            return p
     
     #return none
     return None
@@ -1051,23 +1077,38 @@ def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_
 
     #call for each point
     responses = []
+    previous_points = read_airQuality_points()
+    new_points = []
     for p in matrix:
         (lat,lon) = p   
-        pm = get_cached_air_quality(lat,lon,previous_points)
-        if pm == None: 
+        previous_point = get_cached_air_quality(lat,lon,previous_points)
+        if previous_point == None: 
             api = "current-conditions?lat=%f&lon=%f&features=pollutants_concentrations&key=%s" % (lat,lon,api_key)
             res = requests.get(base+api).json()    
             pm = res["data"]["pollutants"]["pm25"]["concentration"]["value"]
-        responses.append(dict(
-            lat = lat,
-            lon = lon,
-            pm = pm,
-            full_res = res
-        ))
-            
+            object = dict(
+                lat = lat,
+                lon = lon,
+                pm = pm,
+                full_res = res
+            )
+            responses.append(object)
+            new_points.append(object)
+        else:
+            responses.append(dict(
+                lat = lat,
+                lon = lon,
+                pm = previous_point["pm"],
+                full_res = previous_point["full_res"]
+            ))
     
+    #write to s3 (for caching)
+    write_airQuality_points(previous_points+new_points)
+    
+    #calc average
     avg_air = average(list(map(lambda x: x["pm"],responses)))
     
+    #prep dictionary
     air_q_dict = dict(
         avg_air_quality = avg_air,
         points = responses
