@@ -1628,6 +1628,7 @@ def db_slack_settings_update(item):
 
 
 def db_slack_get_info(item):
+    print("In Get Info ...")
     trip_id = item.get("trip_id")
     src, dst, user_id, types = None, None, None, []
     response = None
@@ -1644,13 +1645,11 @@ def db_slack_get_info(item):
         types = resp_item.get("alert_types")
 
     print(src,dst)
-    geolocator = Nominatim(user_agent="application")
-    src = geolocator.geocode(src)
-    dst = geolocator.geocode(dst)
-    print(src,dst)
-    print("src = ", (src.latitude, src.longitude), " dst = ", (src.latitude, src.longitude), " types = ", types)
+    src = functions.geocode(src)
+    dst = functions.geocode(dst)
+    print("src = ", (src['lat'], src['lng']), " dst = ", (dst['lat'], dst['lng']), " types = ", types)
     filepath = "images/"+"map_"+str(trip_id)+".png"
-    response = functions.get_slack_info_message_content((src.latitude, src.longitude), (dst.latitude, dst.longitude), None, types, filepath)
+    response = functions.get_slack_info_message_content((src['lat'], src['lng']), (dst['lat'], dst['lng']), None, types, filepath)
     base = "https://purenav.s3.amazonaws.com/"
     response["image_path"] = base + filepath
     # Save the image to server space and send the link to response object
