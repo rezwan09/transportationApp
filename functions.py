@@ -211,6 +211,18 @@ def get_slack_info_message_content(src,dst,info_object=None,types=["plannedEvent
 #################################################### HELPING METHODS ########################################################
 #################################################### HELPING METHODS ########################################################
 
+def geocode(string_address):
+    '''
+    string_address(str): the string address like 111 engineering center, boulder, co.
+    retrun(dict): a dictionary like {'lat':xxxxxx,'lon':xxxxxxx} Or None if it did not find.
+    '''
+    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={string_address}&key={api_key}"
+    res = requests.get(url).json()
+    if "results" in res:
+        return res["results"][0]["geometry"]["location"] if len(res["results"]) > 0 else None
+    else:
+        return None
+
 def read_airQuality_points():
     filename = str(today)+".csv"
     return read_from_s3(bucket,filename)
