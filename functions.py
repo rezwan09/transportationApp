@@ -1118,7 +1118,7 @@ def get_roadAirQuality(src,dst,routes_points=None,space_between_points=None,max_
     write_airQuality_points(previous_points+new_points)
     
     #calc average
-    avg_air = average(list(map(lambda x: x["pm"],responses)))
+    avg_air = round(average(list(map(lambda x: x["pm"],responses))),2)
     
     #prep dictionary
     air_q_dict = dict(
