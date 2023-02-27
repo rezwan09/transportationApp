@@ -242,6 +242,13 @@ def slack_upcoming_trips():
     return res
 
 
+@app.route('/slack/trips/generate', methods=['POST'])
+def slack_generate_trips_today():
+    """ This will do insert or update"""
+    res = db_slack_generate_trips_today(request.get_json())
+    return res
+
+
 @app.route('/slack/feedback/add', methods=['POST'])
 def slack_feedback_add():
     """ This will do insert or update"""
@@ -1569,6 +1576,105 @@ def db_slack_upcoming_trips(item):
     items.sort(key=lambda x: x.get("suggested_start_time"))
     response["Items"] = items
     return response
+
+
+def db_slack_generate_trips_today(item):
+    user_id = item.get("user_id")
+    day = item.get("day")
+
+    # Connection and resources
+    dynamodb = boto3.resource('dynamodb', region_name="us-east-1")
+    table_name = "slack_planned_trips"
+    table = dynamodb.Table(table_name)
+
+    # Get today's date and day name
+    today_date = time_now().date()
+
+    # First scan the full table with the user_id
+    fe = Attr('user_id').eq(str(user_id)) & Attr('is_deleted').ne(True)
+    pe = "id, user_name, schedule_name, days_of_week, src_name, src_address, dst_name, dst_address, medium"
+    # Scan table with filters
+    pref_response = table.scan(
+        FilterExpression=fe,
+        ProjectionExpression=pe
+    )
+    data = {}
+    rows = pref_response['Items']
+    dates = [today_date]
+    for dt in dates:
+        for row in rows:
+            schedule_id = row['id']
+            user_name = row['user_name']
+            schedule_name = row['schedule_name']
+            src_name = row['src_name']
+            dst_name = row['dst_name']
+            src = row['src_address']
+            dst = row['dst_address']
+            medium = row['medium']
+            days_of_week = row['days_of_week']
+            day_name = calendar.day_name[dt.weekday()]
+            times = days_of_week.get(day_name)
+            data['schedule_id'] = schedule_id
+            data['user_id'] = user_id
+            data['user_name'] = user_name
+            data['schedule_name'] = schedule_name
+            data['src_name'] = src_name
+            data['dst_name'] = dst_name
+            data['src'] = src
+            data['dst'] = dst
+            data['medium'] = medium
+            if times is not None and times != '':
+                for t in times:
+                    print("day = ", today_date, " time = ", t)
+                    try:
+                        tm = datetime.strptime(t, "%H:%M:%S").time()
+                    except ValueError:
+                        tm = datetime.strptime(t, "%H:%M").time()
+                    preferred_arrival = datetime.combine(dt, tm)
+                    dtc = preferred_arrival.strftime("%Y-%m-%d %H:%M:%S")
+                    data['scheduled_arrival'] = dtc
+                    print("dtc = ", dtc, " time now = ", time_now())
+                    print(dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"))
+                    if dtc > time_now().strftime("%Y-%m-%d %H:%M:%S"):
+                        medium_str = None
+                        if medium == "BIKING":
+                            medium_str = "bicycling"
+                        else:
+                            medium_str = medium.lower()
+                        res = functions.get_departure_time(src, dst, preferred_arrival, medium_str)
+                        data['suggested_start_time'] = res[0].strftime("%Y-%m-%d %H:%M:%S")
+                        data['estimated_duration'] = res[1]
+                        # Add the trip
+                        # Optimization needed: If trip not found in table create it
+                        fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').eq(dtc) & Attr('dst_address').eq(
+                            dst)
+                        trip_table = dynamodb.Table("slack_trip")
+                        result = trip_table.scan(
+                            FilterExpression=fe
+                        )
+                        # Add the trip if not duplicate
+                        if result['Count'] == 0:
+                            db_slack_add_trip(data)
+
+    # Show the trips generated in the last block
+    from_time = time_now().date()
+    to_time = from_time + timedelta(days=1)
+    from_time = from_time.strftime("%Y-%m-%d %H:%M:%S")
+    to_time = to_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    fe = Attr('user_id').eq(str(user_id)) & Attr('scheduled_arrival').gte(from_time) \
+         & Attr('scheduled_arrival').lte(to_time) & Attr('is_deleted').ne(True)
+    trip_table = dynamodb.Table("slack_trip")
+    response = trip_table.scan(
+        FilterExpression=fe
+    )
+
+    # Sort the trips by scheduled_arrival time
+    items = response["Items"]
+    items.sort(key=lambda x: x.get("suggested_start_time"))
+    response["Items"] = items
+    return response
+
 
 
 def db_slack_feedback_add(item):

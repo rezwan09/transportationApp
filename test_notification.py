@@ -31,6 +31,7 @@ def getTimeString():
     arrival_time_str = arrival_time.strftime("%I:%M %p")
     print(arrival_time_str)
 
+
 # Test the function
 getTimeString()
 #print(get_text({"user_name":"name", "src_name":"src-name", "dst_name":"dst_name"}))
